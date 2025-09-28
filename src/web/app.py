@@ -7,6 +7,8 @@
 import os
 import sys
 import logging
+import time
+import json
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -21,9 +23,13 @@ sys.path.append(project_root)
 
 # Импортируем модули системы
 from core.security_system_v3 import SecuritySystemV3
+from core.api_keys_manager import APIKeysManager
+from trading.enhanced_grid_bot import EnhancedMultiAssetGridBot
+from trading.real_grid_bot import RealGridBot
 
 # Инициализация системы
 security_system = SecuritySystemV3()
+api_keys_manager = APIKeysManager()
 
 # Простой класс для работы с балансами
 class RealBalanceManager:
@@ -541,6 +547,106 @@ def dashboard():
 def admin_panel():
     """Панель администратора"""
     return render_template('admin.html')
+
+@app.route('/bots')
+@login_required
+def bots():
+    """Страница управления ботами"""
+    return render_template('bots.html')
+
+# API endpoints для работы с ботами
+@app.route('/api/bots/create', methods=['POST'])
+@login_required
+def api_create_bot():
+    """API для создания бота"""
+    try:
+        data = request.get_json()
+        user_id = session['user_id']
+        
+        bot_type = data.get('botType', 'grid')
+        bot_name = data.get('botName', f'{bot_type}_bot')
+        
+        # Получаем API ключи пользователя
+        user_keys = api_keys_manager.get_user_api_keys(user_id)
+        if not user_keys:
+            return jsonify({'success': False, 'error': 'API ключи не найдены'})
+        
+        # Создаем конфигурацию бота
+        bot_config = {
+            'user_id': user_id,
+            'bot_type': bot_type,
+            'bot_name': bot_name,
+            'api_keys': user_keys[0],  # Используем первый набор ключей
+            'status': 'created',
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Сохраняем конфигурацию
+        import json
+        os.makedirs('data/bot_configs', exist_ok=True)
+        with open(f'data/bot_configs/bot_{user_id}_{bot_type}.json', 'w') as f:
+            json.dump(bot_config, f, indent=2)
+        
+        return jsonify({'success': True, 'bot_id': f'{bot_type}_{user_id}_{int(time.time())}'})
+        
+    except Exception as e:
+        logger.error(f"Ошибка создания бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/status')
+@login_required
+def api_bots_status():
+    """API для получения статуса ботов"""
+    try:
+        user_id = session['user_id']
+        bots = []
+        
+        # Ищем конфигурации ботов пользователя
+        import glob
+        bot_files = glob.glob(f'data/bot_configs/bot_{user_id}_*.json')
+        
+        for bot_file in bot_files:
+            try:
+                with open(bot_file, 'r') as f:
+                    bot_config = json.load(f)
+                    bots.append({
+                        'id': bot_config.get('bot_id', 'unknown'),
+                        'name': bot_config.get('bot_name', 'Unknown'),
+                        'type': bot_config.get('bot_type', 'unknown'),
+                        'status': bot_config.get('status', 'unknown'),
+                        'created_at': bot_config.get('created_at', ''),
+                        'last_update': bot_config.get('last_update', '')
+                    })
+            except Exception as e:
+                logger.error(f"Ошибка чтения конфигурации бота {bot_file}: {e}")
+        
+        return jsonify({'success': True, 'bots': bots})
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения статуса ботов: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/balance')
+@login_required
+def api_balance():
+    """API для получения баланса"""
+    try:
+        user_id = session['user_id']
+        
+        # Получаем API ключи пользователя
+        user_keys = api_keys_manager.get_user_api_keys(user_id)
+        if not user_keys:
+            return jsonify({'success': False, 'error': 'API ключи не найдены'})
+        
+        # Создаем менеджер баланса
+        balance_manager = RealBalanceManager(user_keys[0], user_keys[1], user_keys[2])
+        balance_data = balance_manager.get_real_balance()
+        
+        return jsonify({'success': True, 'balance': balance_data})
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения баланса: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 # Обработчик ошибок
 @app.errorhandler(404)

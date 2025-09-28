@@ -27,121 +27,77 @@
                     
                     <div class="auth-body">
                         <!-- Flash сообщения -->
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, message in messages %}
-                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
-                                        {{ message }}
-                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                    </div>
-                                {% endfor %}
-                            {% endif %}
-                        {% endwith %}
+                        {% if error %}
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                {{ error }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endif %}
                         
                         <!-- Форма регистрации -->
                         <form method="POST" novalidate>
-                            {{ form.hidden_tag() }}
-                            
                             <div class="mb-3">
-                                <label for="{{ form.username.id }}" class="form-label">
+                                <label for="telegram_username" class="form-label">
                                     <i class="fas fa-user me-1"></i>
-                                    {{ form.username.label.text }}
+                                    Имя пользователя
                                 </label>
-                                {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else "")) }}
-                                {% if form.username.errors %}
-                                    <div class="invalid-feedback">
-                                        {% for error in form.username.errors %}
-                                            {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                                <div class="form-text">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    Только буквы, цифры и подчеркивания
-                                </div>
+                                <input type="text" class="form-control" id="telegram_username" name="telegram_username" required>
                             </div>
                             
                             <div class="mb-3">
-                                <label for="{{ form.email.id }}" class="form-label">
-                                    <i class="fas fa-envelope me-1"></i>
-                                    {{ form.email.label.text }}
+                                <label for="telegram_user_id" class="form-label">
+                                    <i class="fas fa-id-card me-1"></i>
+                                    Telegram User ID
                                 </label>
-                                {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
-                                {% if form.email.errors %}
-                                    <div class="invalid-feedback">
-                                        {% for error in form.email.errors %}
-                                            {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
+                                <input type="number" class="form-control" id="telegram_user_id" name="telegram_user_id" required>
+                                <div class="form-text">Введите ваш Telegram User ID (число)</div>
                             </div>
                             
                             <div class="mb-3">
-                                <label for="{{ form.password.id }}" class="form-label">
+                                <label for="api_type" class="form-label">
+                                    <i class="fas fa-exchange-alt me-1"></i>
+                                    Тип биржи
+                                </label>
+                                <select class="form-select" id="api_type" name="api_type" required>
+                                    <option value="">Выберите биржу</option>
+                                    <option value="okx">OKX</option>
+                                    <option value="binance">Binance</option>
+                                    <option value="bybit">Bybit</option>
+                                    <option value="huobi">Huobi</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="api_key" class="form-label">
+                                    <i class="fas fa-key me-1"></i>
+                                    API Key
+                                </label>
+                                <input type="text" class="form-control" id="api_key" name="api_key" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="secret_key" class="form-label">
                                     <i class="fas fa-lock me-1"></i>
-                                    {{ form.password.label.text }}
+                                    Secret Key
                                 </label>
-                                {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
-                                {% if form.password.errors %}
-                                    <div class="invalid-feedback">
-                                        {% for error in form.password.errors %}
-                                            {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                                <div class="form-text">
+                                <input type="password" class="form-control" id="secret_key" name="secret_key" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="passphrase" class="form-label">
                                     <i class="fas fa-shield-alt me-1"></i>
-                                    Минимум 8 символов, включая буквы и цифры
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="{{ form.confirm_password.id }}" class="form-label">
-                                    <i class="fas fa-lock me-1"></i>
-                                    {{ form.confirm_password.label.text }}
+                                    Passphrase
                                 </label>
-                                {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else "")) }}
-                                {% if form.confirm_password.errors %}
-                                    <div class="invalid-feedback">
-                                        {% for error in form.confirm_password.errors %}
-                                            {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
+                                <input type="password" class="form-control" id="passphrase" name="passphrase" required>
+                                <div class="form-text">Пароль для API (только для некоторых бирж)</div>
                             </div>
                             
                             <div class="mb-3">
-                                <div class="form-check">
-                                    {{ form.agree_terms(class="form-check-input" + (" is-invalid" if form.agree_terms.errors else "")) }}
-                                    <label class="form-check-label" for="{{ form.agree_terms.id }}">
-                                        {{ form.agree_terms.label.text }}
-                                        <a href="#" class="text-decoration-none">условиям использования</a>
-                                    </label>
-                                    {% if form.agree_terms.errors %}
-                                        <div class="invalid-feedback">
-                                            {% for error in form.agree_terms.errors %}
-                                                {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    {{ form.agree_privacy(class="form-check-input" + (" is-invalid" if form.agree_privacy.errors else "")) }}
-                                    <label class="form-check-label" for="{{ form.agree_privacy.id }}">
-                                        {{ form.agree_privacy.label.text }}
-                                        <a href="#" class="text-decoration-none">политикой конфиденциальности</a>
-                                    </label>
-                                    {% if form.agree_privacy.errors %}
-                                        <div class="invalid-feedback">
-                                            {% for error in form.agree_privacy.errors %}
-                                                {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                </div>
+                                <label for="password" class="form-label">
+                                    <i class="fas fa-lock me-1"></i>
+                                    Пароль для входа
+                                </label>
+                                <input type="password" class="form-control" id="password" name="password" required>
                             </div>
                             
                             <div class="d-grid gap-2">
@@ -155,7 +111,7 @@
                     
                     <div class="auth-footer">
                         <div class="text-center">
-                            <a href="{{ url_for('auth.login') }}" class="auth-link">
+                            <a href="{{ url_for('login') }}" class="auth-link">
                                 <i class="fas fa-sign-in-alt me-1"></i>
                                 Уже есть аккаунт? Войти
                             </a>
@@ -164,8 +120,7 @@
                         <div class="auth-info mt-3">
                             <small class="text-muted">
                                 <i class="fas fa-info-circle me-1"></i>
-                                Регистрируясь, вы соглашаетесь с нашими условиями использования и политикой конфиденциальности.
-                                Ваши данные защищены шифрованием.
+                                После регистрации вы получите права супер-администратора
                             </small>
                         </div>
                     </div>
@@ -176,16 +131,5 @@
     
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Custom JS -->
-    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

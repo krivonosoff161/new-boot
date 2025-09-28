@@ -27,77 +27,29 @@
                     
                     <div class="auth-body">
                         <!-- Flash сообщения -->
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, message in messages %}
-                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
-                                        {{ message }}
-                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                    </div>
-                                {% endfor %}
-                            {% endif %}
-                        {% endwith %}
+                        {% if error %}
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                {{ error }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endif %}
                         
                         <!-- Форма входа -->
                         <form method="POST" novalidate>
-                            {{ form.hidden_tag() }}
-                            
                             <div class="mb-3">
-                                <label for="{{ form.username_or_email.id }}" class="form-label">
+                                <label for="username" class="form-label">
                                     <i class="fas fa-user me-1"></i>
-                                    {{ form.username_or_email.label.text }}
+                                    Имя пользователя
                                 </label>
-                                {{ form.username_or_email(class="form-control" + (" is-invalid" if form.username_or_email.errors else "")) }}
-                                {% if form.username_or_email.errors %}
-                                    <div class="invalid-feedback">
-                                        {% for error in form.username_or_email.errors %}
-                                            {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
+                                <input type="text" class="form-control" id="username" name="username" required>
                             </div>
                             
                             <div class="mb-3">
-                                <label for="{{ form.password.id }}" class="form-label">
+                                <label for="password" class="form-label">
                                     <i class="fas fa-lock me-1"></i>
-                                    {{ form.password.label.text }}
+                                    Пароль
                                 </label>
-                                {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
-                                {% if form.password.errors %}
-                                    <div class="invalid-feedback">
-                                        {% for error in form.password.errors %}
-                                            {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    {{ form.remember_me(class="form-check-input") }}
-                                    <label class="form-check-label" for="{{ form.remember_me.id }}">
-                                        {{ form.remember_me.label.text }}
-                                    </label>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="{{ form.two_factor_code.id }}" class="form-label">
-                                    <i class="fas fa-shield-alt me-1"></i>
-                                    {{ form.two_factor_code.label.text }}
-                                </label>
-                                {{ form.two_factor_code(class="form-control" + (" is-invalid" if form.two_factor_code.errors else "")) }}
-                                {% if form.two_factor_code.errors %}
-                                    <div class="invalid-feedback">
-                                        {% for error in form.two_factor_code.errors %}
-                                            {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                                <div class="form-text">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    Введите 6-значный код из приложения аутентификации
-                                </div>
+                                <input type="password" class="form-control" id="password" name="password" required>
                             </div>
                             
                             <div class="d-grid gap-2">
@@ -110,25 +62,17 @@
                     </div>
                     
                     <div class="auth-footer">
-                        <div class="row">
-                            <div class="col-6">
-                                <a href="{{ url_for('auth.forgot_password') }}" class="auth-link">
-                                    <i class="fas fa-key me-1"></i>
-                                    Забыли пароль?
-                                </a>
-                            </div>
-                            <div class="col-6 text-end">
-                                <!-- Регистрация временно отключена -->
-                                    <i class="fas fa-user-plus me-1"></i>
-                                    Регистрация
-                                </a>
-                            </div>
+                        <div class="text-center">
+                            <a href="{{ url_for('register') }}" class="auth-link">
+                                <i class="fas fa-user-plus me-1"></i>
+                                Нет аккаунта? Зарегистрироваться
+                            </a>
                         </div>
                         
                         <div class="auth-info mt-3">
                             <small class="text-muted">
                                 <i class="fas fa-info-circle me-1"></i>
-                                Сессия будет активна 7 дней. При выборе "Запомнить меня" - 30 дней.
+                                Сессия будет активна 7 дней
                             </small>
                         </div>
                     </div>
@@ -139,15 +83,5 @@
     
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Custom JS -->
-    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
