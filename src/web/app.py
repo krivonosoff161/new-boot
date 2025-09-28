@@ -903,8 +903,12 @@ def api_create_bot():
         if not selected_key:
             return jsonify({'success': False, 'error': 'Нет доступных API ключей для создания бота'})
         
+        # Создаем ID бота
+        bot_id = f'{bot_type}_{user_id}_{int(time.time())}'
+        
         # Создаем конфигурацию бота
         bot_config = {
+            'bot_id': bot_id,  # Добавляем bot_id в конфигурацию
             'user_id': user_id,
             'bot_type': bot_type,
             'bot_name': bot_name,
@@ -920,7 +924,39 @@ def api_create_bot():
         with open(f'data/bot_configs/bot_{user_id}_{bot_type}.json', 'w') as f:
             json.dump(bot_config, f, indent=2)
         
-        return jsonify({'success': True, 'bot_id': f'{bot_type}_{user_id}_{int(time.time())}'})
+        # Добавляем бота в bot_status.json
+        try:
+            logger.info(f"🔄 Добавляем бота {bot_id} в bot_status.json...")
+            
+            if os.path.exists('data/bot_status.json'):
+                logger.info("📁 Файл bot_status.json существует, читаем...")
+                with open('data/bot_status.json', 'r') as f:
+                    bot_status = json.load(f)
+                logger.info(f"📊 Текущий bot_status.json содержит {len(bot_status)} ботов")
+            else:
+                logger.info("📁 Файл bot_status.json не существует, создаем новый...")
+                bot_status = {}
+            
+            bot_status[bot_id] = {
+                'id': bot_id,
+                'name': bot_name,
+                'type': bot_type,
+                'status': 'created',
+                'created_at': datetime.now().isoformat(),
+                'user_id': user_id
+            }
+            
+            logger.info(f"💾 Сохраняем bot_status.json с {len(bot_status)} ботами...")
+            with open('data/bot_status.json', 'w') as f:
+                json.dump(bot_status, f, indent=2)
+            
+            logger.info(f"✅ Бот {bot_id} добавлен в bot_status.json")
+        except Exception as e:
+            logger.error(f"❌ Ошибка при обновлении bot_status.json: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        
+        return jsonify({'success': True, 'bot_id': bot_id})
         
     except Exception as e:
         logger.error(f"Ошибка создания бота: {e}")
@@ -935,10 +971,26 @@ def api_delete_bot(bot_id):
         logger.info(f"🗑️ Удаление бота {bot_id} для пользователя {user_id}")
         
         # Удаляем конфигурацию бота
-        config_file = f'data/bot_configs/bot_{user_id}_{bot_id.split("_")[0]}.json'
-        if os.path.exists(config_file):
+        # Ищем файл конфигурации по bot_id
+        import glob
+        bot_files = glob.glob(f'data/bot_configs/bot_{user_id}_*.json')
+        config_file = None
+        
+        for bot_file in bot_files:
+            try:
+                with open(bot_file, 'r') as f:
+                    bot_config = json.load(f)
+                    if bot_config.get('bot_id') == bot_id:
+                        config_file = bot_file
+                        break
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка чтения файла {bot_file}: {e}")
+        
+        if config_file and os.path.exists(config_file):
             os.remove(config_file)
             logger.info(f"✅ Конфигурация бота удалена: {config_file}")
+        else:
+            logger.warning(f"⚠️ Файл конфигурации для бота {bot_id} не найден")
         
         # Обновляем статус в bot_status.json
         try:
@@ -959,6 +1011,193 @@ def api_delete_bot(bot_id):
         
     except Exception as e:
         logger.error(f"Ошибка удаления бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/<bot_id>/start', methods=['POST'])
+@login_required
+def api_start_bot(bot_id):
+    """API для запуска бота"""
+    try:
+        user_id = session['user_id']
+        logger.info(f"🚀 Запуск бота {bot_id} для пользователя {user_id}")
+        
+        # Обновляем статус в bot_status.json
+        try:
+            if os.path.exists('data/bot_status.json'):
+                with open('data/bot_status.json', 'r') as f:
+                    bot_status = json.load(f)
+                
+                if bot_id in bot_status:
+                    bot_status[bot_id]['status'] = 'running'
+                    bot_status[bot_id]['last_update'] = datetime.now().isoformat()
+                    
+                    with open('data/bot_status.json', 'w') as f:
+                        json.dump(bot_status, f, indent=2)
+                    
+                    logger.info(f"✅ Бот {bot_id} запущен")
+                    return jsonify({'success': True, 'message': f'Бот {bot_id} запущен'})
+                else:
+                    return jsonify({'success': False, 'error': 'Бот не найден'})
+            else:
+                return jsonify({'success': False, 'error': 'Файл статуса ботов не найден'})
+        except Exception as e:
+            logger.error(f"Ошибка запуска бота: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+        
+    except Exception as e:
+        logger.error(f"Ошибка запуска бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/<bot_id>/stop', methods=['POST'])
+@login_required
+def api_stop_bot(bot_id):
+    """API для остановки бота"""
+    try:
+        user_id = session['user_id']
+        logger.info(f"⏹️ Остановка бота {bot_id} для пользователя {user_id}")
+        
+        # Обновляем статус в bot_status.json
+        try:
+            if os.path.exists('data/bot_status.json'):
+                with open('data/bot_status.json', 'r') as f:
+                    bot_status = json.load(f)
+                
+                if bot_id in bot_status:
+                    bot_status[bot_id]['status'] = 'stopped'
+                    bot_status[bot_id]['last_update'] = datetime.now().isoformat()
+                    
+                    with open('data/bot_status.json', 'w') as f:
+                        json.dump(bot_status, f, indent=2)
+                    
+                    logger.info(f"✅ Бот {bot_id} остановлен")
+                    return jsonify({'success': True, 'message': f'Бот {bot_id} остановлен'})
+                else:
+                    return jsonify({'success': False, 'error': 'Бот не найден'})
+            else:
+                return jsonify({'success': False, 'error': 'Файл статуса ботов не найден'})
+        except Exception as e:
+            logger.error(f"Ошибка остановки бота: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+        
+    except Exception as e:
+        logger.error(f"Ошибка остановки бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/<bot_id>/details')
+@login_required
+def api_bot_details(bot_id):
+    """API для получения детальной информации о боте"""
+    try:
+        user_id = session['user_id']
+        logger.info(f"🔍 Запрос деталей бота {bot_id} для пользователя {user_id}")
+        
+        # Читаем информацию из bot_status.json
+        bot_info = None
+        if os.path.exists('data/bot_status.json'):
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            if bot_id in bot_status:
+                bot_data = bot_status[bot_id]
+                if bot_data.get('user_id') == user_id:
+                    bot_info = {
+                        'id': bot_data.get('id', bot_id),
+                        'name': bot_data.get('name', 'Unknown'),
+                        'type': bot_data.get('type', 'unknown'),
+                        'status': bot_data.get('status', 'unknown'),
+                        'created_at': bot_data.get('created_at', ''),
+                        'last_update': bot_data.get('last_update', ''),
+                        'user_id': bot_data.get('user_id', user_id)
+                    }
+        
+        if not bot_info:
+            return jsonify({'success': False, 'error': 'Бот не найден'})
+        
+        # Получаем реальные данные пользователя
+        user_keys = get_all_user_keys(user_id)
+        real_balance = 0
+        api_key_display = "Не подключен"
+        
+        if user_keys:
+            # Получаем реальный баланс
+            try:
+                from src.utils.real_balance_manager import RealBalanceManager
+                balance_manager = RealBalanceManager()
+                
+                for key_data in user_keys:
+                    if key_data.get('validation_status') == 'valid':
+                        balance_data = balance_manager.get_real_balance(
+                            key_data.get('api_key'),
+                            key_data.get('secret_key'), 
+                            key_data.get('passphrase', ''),
+                            key_data.get('exchange', 'OKX'),
+                            key_data.get('mode', 'sandbox')
+                        )
+                        
+                        if isinstance(balance_data, dict) and 'total_balance' in balance_data:
+                            real_balance += balance_data['total_balance']
+                            api_key_display = f"{key_data.get('exchange', 'OKX')} ({key_data.get('mode', 'sandbox')})"
+                            break
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось получить реальный баланс: {e}")
+        
+        # Добавляем дополнительную информацию для панели управления
+        bot_details = {
+            'basic_info': {
+                'id': bot_info['id'],
+                'name': bot_info['name'],
+                'type': bot_info['type'],
+                'status': bot_info['status'],
+                'created_at': bot_info['created_at'],
+                'last_update': bot_info['last_update'],
+                'api_key': api_key_display,
+                'mode': 'demo' if user_keys and user_keys[0].get('mode') == 'sandbox' else 'live'
+            },
+            'trading_settings': {
+                'mode': 'demo' if user_keys and user_keys[0].get('mode') == 'sandbox' else 'live',
+                'pairs': ['BTC/USDT', 'ETH/USDT'],
+                'capital': real_balance * 0.1 if real_balance > 0 else 1000,  # 10% от баланса
+                'grid_levels': 5,
+                'spread_percent': 0.5,
+                'max_pairs': 8,
+                'risk_level': 'Низкий' if real_balance < 1000 else 'Средний' if real_balance < 5000 else 'Высокий'
+            },
+            'performance': {
+                'total_trades': 0,
+                'win_rate': 0,
+                'profit_loss': 0,
+                'active_orders': 0
+            },
+            'balance_info': {
+                'total_balance': real_balance,
+                'free_balance': real_balance * 0.9 if real_balance > 0 else 900,
+                'used_balance': real_balance * 0.1 if real_balance > 0 else 100,
+                'allocated_capital': real_balance * 0.1 if real_balance > 0 else 1000
+            },
+            'risk_management': {
+                'max_drawdown': 10,
+                'stop_loss': 5,
+                'take_profit': 15,
+                'max_risk_per_trade': 2.0,
+                'total_risk_limit': 10.0,
+                'current_risk': 0.0
+            },
+            'automation_settings': {
+                'auto_start': False,
+                'auto_stop': False,
+                'notifications': True,
+                'auto_rebalance': False,
+                'auto_pair_selection': False,
+                'auto_risk_adjustment': False
+            },
+            'current_positions': [],
+            'last_update': datetime.now().isoformat()
+        }
+        
+        return jsonify({'success': True, 'bot_details': bot_details})
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения деталей бота: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/bots/available-keys')
@@ -1001,24 +1240,45 @@ def api_bots_status():
         user_id = session['user_id']
         bots = []
         
-        # Ищем конфигурации ботов пользователя
-        import glob
-        bot_files = glob.glob(f'data/bot_configs/bot_{user_id}_*.json')
+        # Читаем ботов из bot_status.json
+        try:
+            if os.path.exists('data/bot_status.json'):
+                with open('data/bot_status.json', 'r') as f:
+                    bot_status = json.load(f)
+                
+                # Фильтруем ботов по user_id
+                for bot_id, bot_data in bot_status.items():
+                    if bot_data.get('user_id') == user_id:
+                        bots.append({
+                            'id': bot_data.get('id', bot_id),
+                            'name': bot_data.get('name', 'Unknown'),
+                            'type': bot_data.get('type', 'unknown'),
+                            'status': bot_data.get('status', 'unknown'),
+                            'created_at': bot_data.get('created_at', ''),
+                            'last_update': bot_data.get('last_update', '')
+                        })
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка чтения bot_status.json: {e}")
         
-        for bot_file in bot_files:
-            try:
-                with open(bot_file, 'r') as f:
-                    bot_config = json.load(f)
-                    bots.append({
-                        'id': bot_config.get('bot_id', 'unknown'),
-                        'name': bot_config.get('bot_name', 'Unknown'),
-                        'type': bot_config.get('bot_type', 'unknown'),
-                        'status': bot_config.get('status', 'unknown'),
-                        'created_at': bot_config.get('created_at', ''),
-                        'last_update': bot_config.get('last_update', '')
-                    })
-            except Exception as e:
-                logger.error(f"Ошибка чтения конфигурации бота {bot_file}: {e}")
+        # Если bot_status.json пустой, ищем в конфигурациях (fallback)
+        if not bots:
+            import glob
+            bot_files = glob.glob(f'data/bot_configs/bot_{user_id}_*.json')
+            
+            for bot_file in bot_files:
+                try:
+                    with open(bot_file, 'r') as f:
+                        bot_config = json.load(f)
+                        bots.append({
+                            'id': bot_config.get('bot_id', 'unknown'),
+                            'name': bot_config.get('bot_name', 'Unknown'),
+                            'type': bot_config.get('bot_type', 'unknown'),
+                            'status': bot_config.get('status', 'unknown'),
+                            'created_at': bot_config.get('created_at', ''),
+                            'last_update': bot_config.get('last_update', '')
+                        })
+                except Exception as e:
+                    logger.error(f"Ошибка чтения конфигурации бота {bot_file}: {e}")
         
         return jsonify({'success': True, 'bots': bots})
         

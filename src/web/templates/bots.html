@@ -74,7 +74,7 @@
                             <div class="card-body">
                                 <div class="row align-items-center">
                                     <div class="col-md-3">
-                                        <h6>{{ '🎯 Grid Bot' if bot.bot_type == 'grid' else '⚡ Scalp Bot' }}</h6>
+                                        <h6>{{ '🎯 Grid Bot' if bot.type == 'grid' else '⚡ Scalp Bot' }}</h6>
                                         <small class="text-muted">ID: {{ bot.bot_id }}</small>
                     </div>
                                     <div class="col-md-2">
@@ -465,16 +465,17 @@ function submitCreateBot() {
     })
     .then(response => response.json())
     .then(data => {
+        console.log('📡 Ответ сервера при создании бота:', data);
         if (data.success) {
             bootstrap.Modal.getInstance(document.getElementById('createBotModal')).hide();
-            showAlert('success', data.message);
+            showAlert('success', `Бот ${data.bot_id} успешно создан!`);
             
             // Обновляем список ботов без перезагрузки страницы
             setTimeout(() => {
                 refreshBots();
             }, 500);
         } else {
-            showAlert('danger', 'Ошибка: ' + data.error);
+            showAlert('danger', 'Ошибка: ' + (data.error || 'Неизвестная ошибка'));
         }
     })
     .catch(error => {
@@ -597,7 +598,7 @@ function updateBotsList(bots) {
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-md-3">
-                            <h6>${bot.bot_type === 'grid' ? '🎯 Grid Bot' : '⚡ Scalp Bot'}</h6>
+                            <h6>${bot.type === 'grid' ? '🎯 Grid Bot' : '⚡ Scalp Bot'}</h6>
                             <small class="text-muted">${bot.bot_name || bot.id}</small>
                         </div>
                         <div class="col-md-2">
@@ -928,7 +929,7 @@ function renderBotDetails(bot, charts, metrics, logs) {
                                         ${safeBot.basic_info.mode === 'demo' ? 'Demo' : 'Live'}
                                     </span>
                                 </p>
-                                <p><strong>API ключ:</strong> ${safeBot.basic_info.api_key_id}</p>
+                                <p><strong>API ключ:</strong> ${safeBot.basic_info.api_key || 'Не подключен'}</p>
                                 <p><strong>Создан:</strong> ${new Date(safeBot.basic_info.created_at).toLocaleString()}</p>
                             </div>
                         </div>
@@ -939,12 +940,12 @@ function renderBotDetails(bot, charts, metrics, logs) {
                                 <h6><i class="fas fa-wallet"></i> Баланс и капитал</h6>
                             </div>
                             <div class="card-body">
-                                <p><strong>Выделенный капитал:</strong> $${safeBot.balance_info.allocated_capital}</p>
-                                <p><strong>Доступный:</strong> $${safeBot.balance_info.available_capital}</p>
-                                <p><strong>Используемый:</strong> $${safeBot.balance_info.used_capital}</p>
+                                <p><strong>Выделенный капитал:</strong> $${safeBot.balance_info.allocated_capital || 0}</p>
+                                <p><strong>Доступный:</strong> $${safeBot.balance_info.free_balance || 0}</p>
+                                <p><strong>Используемый:</strong> $${safeBot.balance_info.used_balance || 0}</p>
                                 <p><strong>P&L:</strong> 
-                                    <span class="text-${safeBot.balance_info.profit_loss >= 0 ? 'success' : 'danger'}">
-                                        $${safeBot.balance_info.profit_loss}
+                                    <span class="text-${(safeBot.balance_info.profit_loss || 0) >= 0 ? 'success' : 'danger'}">
+                                        $${safeBot.balance_info.profit_loss || 0}
                                     </span>
                                 </p>
                             </div>
@@ -1487,7 +1488,7 @@ function renderBotDetailsOld(botDetails) {
                                     <i class="fas fa-robot me-2"></i>
                                     ${botDetails.name || 'Торговый бот'}
                                     <span class="badge bg-light text-dark ms-2">
-                                        ${botDetails.bot_type === 'grid' ? '🎯 Grid Bot' : '⚡ Scalp Bot'}
+                                        ${botDetails.type === 'grid' ? '🎯 Grid Bot' : '⚡ Scalp Bot'}
                                     </span>
                                 </h4>
                                 <p class="mb-0">
