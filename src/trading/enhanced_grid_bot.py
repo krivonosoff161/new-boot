@@ -25,11 +25,8 @@ from dotenv import load_dotenv
 from core.log_helper import build_logger
 from core.config_manager import ConfigManager
 from core.ipc import GridBotIPCServer
-import importlib.util
-spec = importlib.util.spec_from_file_location("capital_distributor_v2", "capital_distributor_v2.0.py")
-capital_distributor_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(capital_distributor_module)
-CapitalDistributor = capital_distributor_module.CapitalDistributor
+# Импортируем Capital Distributor из правильного места
+from .capital_distributor import CapitalDistributor
 
 # Импорт новых модулей
 from .zonal_risk_manager import ZonalRiskManager

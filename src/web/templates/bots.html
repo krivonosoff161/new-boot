@@ -271,18 +271,26 @@
         </div>
 
 <script>
-function createBot(botType) {
-    document.getElementById('botType').value = botType;
-    document.getElementById('createBotModalTitle').textContent = `Создание ${botType === 'grid' ? 'Grid' : 'Scalp'} бота`;
+// Определяем функцию createBot в глобальной области
+window.createBot = function(botType) {
+    console.log('createBot вызвана с типом:', botType);
     
-    // Загружаем доступные API ключи
-    loadAvailableApiKeys();
-    
-    // Обработчики для переключения режима
-    setupModeHandlers();
-    
-    const modal = new bootstrap.Modal(document.getElementById('createBotModal'));
-    modal.show();
+    try {
+        document.getElementById('botType').value = botType;
+        document.getElementById('createBotModalTitle').textContent = `Создание ${botType === 'grid' ? 'Grid' : 'Scalp'} бота`;
+        
+        // Загружаем доступные API ключи
+        loadAvailableApiKeys();
+        
+        // Обработчики для переключения режима
+        setupModeHandlers();
+        
+        const modal = new bootstrap.Modal(document.getElementById('createBotModal'));
+        modal.show();
+    } catch (error) {
+        console.error('Ошибка в createBot:', error);
+        alert('Ошибка открытия модального окна: ' + error.message);
+    }
 }
 
 function loadAvailableApiKeys() {
@@ -525,7 +533,7 @@ function deleteBot(botId) {
 }
 
 function updateBotsList(bots) {
-    """Обновление списка ботов в DOM"""
+    // Обновление списка ботов в DOM
     const botsList = document.getElementById('bots-list');
     
     if (!bots || bots.length === 0) {
