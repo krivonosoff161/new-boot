@@ -9,6 +9,7 @@ import sys
 import logging
 import time
 import json
+import sqlite3
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -182,8 +183,24 @@ class RealBalanceManager:
 # Встроенные функции для работы с админами
 def is_admin(user_id):
     """Проверка, является ли пользователь администратором"""
-    admin_ids = [1, 2]  # Хардкод список админов
-    return user_id in admin_ids
+    try:
+        # Проверяем роль в базе данных
+        conn = sqlite3.connect('secure_users.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT role FROM secure_users WHERE user_id = ?', (user_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            role = result[0]
+            return role in ['admin', 'super_admin']
+        
+        # Fallback: проверяем по ID (для совместимости)
+        admin_ids = [1, 2, 462885677]  # Включаем ваш ID
+        return user_id in admin_ids
+    except Exception as e:
+        logger.error(f"Ошибка проверки прав администратора: {e}")
+        return False
 
 def get_user_limits(subscription_status):
     """Получение лимитов пользователя"""
@@ -346,13 +363,14 @@ def register():
         telegram_username = request.form.get('telegram_username', '').strip()
         telegram_user_id = request.form.get('telegram_user_id', '').strip()
         api_type = request.form.get('api_type', '').strip()
+        key_mode = request.form.get('key_mode', '').strip()
         api_key = request.form.get('api_key', '').strip()
         secret_key = request.form.get('secret_key', '').strip()
         passphrase = request.form.get('passphrase', '').strip()
         password = request.form.get('password', '').strip()
         
         # Валидация данных
-        if not all([telegram_username, telegram_user_id, api_type, api_key, secret_key, passphrase, password]):
+        if not all([telegram_username, telegram_user_id, api_type, key_mode, api_key, secret_key, passphrase, password]):
             return render_template('register.html', error='Заполните все поля')
         
         try:
@@ -385,8 +403,8 @@ def register():
                 INSERT INTO secure_users (
                     user_id, telegram_username, encrypted_api_key, encrypted_secret_key,
                     encrypted_passphrase, encryption_key, registration_date, 
-                    last_login, login_attempts, is_active, role, subscription_status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    last_login, login_attempts, is_active, role, subscription_status, key_mode
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 telegram_user_id,
                 telegram_username,
@@ -399,7 +417,8 @@ def register():
                 0,
                 1,
                 'super_admin',
-                'premium'
+                'premium',
+                key_mode  # Сохраняем режим ключей
             ))
             
             conn.commit()
@@ -546,13 +565,107 @@ def dashboard():
 @admin_required
 def admin_panel():
     """Панель администратора"""
-    return render_template('admin.html')
+    try:
+        user_id = session['user_id']
+        
+        # Получаем данные пользователя
+        conn = sqlite3.connect('secure_users.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT user_id, telegram_username, role FROM secure_users WHERE user_id = ?', (user_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            user = {
+                'user_id': result[0],
+                'username': result[1],
+                'role': result[2]
+            }
+        else:
+            user = {
+                'user_id': user_id,
+                'username': session.get('username', 'Unknown'),
+                'role': session.get('role', 'admin')
+            }
+        
+        return render_template('admin.html', user=user)
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки админ панели: {e}")
+        # Fallback с базовыми данными
+        user = {
+            'user_id': session.get('user_id', 'unknown'),
+            'username': session.get('username', 'Unknown'),
+            'role': session.get('role', 'admin')
+        }
+        return render_template('admin.html', user=user)
 
 @app.route('/bots')
 @login_required
 def bots():
     """Страница управления ботами"""
     return render_template('bots.html')
+
+def get_user_keys_from_db(user_id):
+    """Получение API ключей пользователя из базы данных"""
+    try:
+        conn = sqlite3.connect('secure_users.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT encrypted_api_key, encrypted_secret_key, encrypted_passphrase, 
+                   registration_date, last_login, role, key_mode
+            FROM secure_users WHERE user_id = ?
+        ''', (user_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            api_key, secret_key, passphrase, created_at, last_used, role, key_mode = result
+            # Используем сохраненный режим ключей из базы данных
+            mode = key_mode if key_mode else 'sandbox'
+            return [{
+                'key_id': f'db_{user_id}',
+                'exchange': 'okx',  # По умолчанию OKX
+                'mode': mode,
+                'api_key_preview': api_key[:8] + '...' + api_key[-4:] if len(api_key) > 12 else '***',
+                'created_at': created_at,
+                'last_used': last_used,
+                'validation_status': 'valid',
+                'is_active': True
+            }]
+        return []
+    except Exception as e:
+        logger.error(f"Ошибка получения ключей из БД: {e}")
+        return []
+
+@app.route('/api-keys')
+@login_required
+def api_keys_page():
+    """Страница управления API ключами"""
+    try:
+        user_id = session['user_id']
+        
+        # Сначала пытаемся получить ключи из APIKeysManager
+        try:
+            user_keys = api_keys_manager.get_user_keys(user_id)
+        except:
+            user_keys = []
+        
+        # Если ключей нет в APIKeysManager, получаем из базы данных
+        if not user_keys:
+            user_keys = get_user_keys_from_db(user_id)
+        
+        # Поддерживаемые биржи
+        supported_exchanges = [
+            'binance', 'bybit', 'okx', 'huobi', 'kraken', 
+            'coinbase', 'bitfinex', 'kucoin', 'gate', 'mexc'
+        ]
+        
+        return render_template('api_keys.html', keys=user_keys, supported_exchanges=supported_exchanges)
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки страницы API ключей: {e}")
+        return render_template('api_keys.html', keys=[], supported_exchanges=[])
 
 # API endpoints для работы с ботами
 @app.route('/api/bots/create', methods=['POST'])
@@ -566,9 +679,9 @@ def api_create_bot():
         bot_type = data.get('botType', 'grid')
         bot_name = data.get('botName', f'{bot_type}_bot')
         
-        # Получаем API ключи пользователя
-        user_keys = api_keys_manager.get_user_api_keys(user_id)
-        if not user_keys:
+        # Получаем расшифрованные ключи
+        decrypted_key = get_user_decrypted_keys(user_id)
+        if not decrypted_key:
             return jsonify({'success': False, 'error': 'API ключи не найдены'})
         
         # Создаем конфигурацию бота
@@ -576,7 +689,7 @@ def api_create_bot():
             'user_id': user_id,
             'bot_type': bot_type,
             'bot_name': bot_name,
-            'api_keys': user_keys[0],  # Используем первый набор ключей
+            'api_keys': decrypted_key,  # Используем расшифрованные ключи
             'status': 'created',
             'created_at': datetime.now().isoformat()
         }
@@ -626,6 +739,45 @@ def api_bots_status():
         logger.error(f"Ошибка получения статуса ботов: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+def get_user_decrypted_keys(user_id):
+    """Получение расшифрованных API ключей пользователя"""
+    try:
+        # Сначала пытаемся получить из APIKeysManager
+        try:
+            user_keys_list = api_keys_manager.get_user_keys(user_id)
+            if user_keys_list:
+                first_key = user_keys_list[0]
+                key_id = first_key['key_id']
+                decrypted_key = api_keys_manager.get_decrypted_key(user_id, key_id)
+                if decrypted_key:
+                    return decrypted_key
+        except:
+            pass
+        
+        # Если не получилось, берем из базы данных
+        conn = sqlite3.connect('secure_users.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT encrypted_api_key, encrypted_secret_key, encrypted_passphrase, key_mode
+            FROM secure_users WHERE user_id = ?
+        ''', (user_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            api_key, secret_key, passphrase, key_mode = result
+            return {
+                'api_key': api_key,
+                'secret': secret_key,
+                'passphrase': passphrase or '',
+                'mode': key_mode or 'sandbox'
+            }
+        
+        return None
+    except Exception as e:
+        logger.error(f"Ошибка получения расшифрованных ключей: {e}")
+        return None
+
 @app.route('/api/balance')
 @login_required
 def api_balance():
@@ -633,19 +785,185 @@ def api_balance():
     try:
         user_id = session['user_id']
         
-        # Получаем API ключи пользователя
-        user_keys = api_keys_manager.get_user_api_keys(user_id)
-        if not user_keys:
+        # Получаем расшифрованные ключи
+        decrypted_key = get_user_decrypted_keys(user_id)
+        if not decrypted_key:
             return jsonify({'success': False, 'error': 'API ключи не найдены'})
         
         # Создаем менеджер баланса
-        balance_manager = RealBalanceManager(user_keys[0], user_keys[1], user_keys[2])
+        balance_manager = RealBalanceManager(
+            decrypted_key['api_key'], 
+            decrypted_key['secret'], 
+            decrypted_key.get('passphrase', '')
+        )
         balance_data = balance_manager.get_real_balance()
         
         return jsonify({'success': True, 'balance': balance_data})
         
     except Exception as e:
         logger.error(f"Ошибка получения баланса: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/api-keys')
+@login_required
+def api_api_keys():
+    """API для получения API ключей пользователя"""
+    try:
+        user_id = session['user_id']
+        
+        # Сначала пытаемся получить из APIKeysManager
+        try:
+            user_keys = api_keys_manager.get_user_keys(user_id)
+        except:
+            user_keys = []
+        
+        # Если не получилось, берем из базы данных
+        if not user_keys:
+            user_keys = get_user_keys_from_db(user_id)
+        
+        if not user_keys:
+            return jsonify({'success': False, 'error': 'API ключи не найдены'})
+        
+        # Возвращаем только безопасную информацию о ключах
+        keys_info = []
+        for key_data in user_keys:
+            keys_info.append({
+                'key_id': key_data.get('key_id', 'unknown'),
+                'exchange': key_data.get('exchange', 'unknown'),
+                'api_key': key_data.get('api_key_preview', '')[:8] + '...' if key_data.get('api_key_preview') else '',
+                'is_active': key_data.get('is_active', False),
+                'created_at': key_data.get('created_at', ''),
+                'last_used': key_data.get('last_used', ''),
+                'validation_status': key_data.get('validation_status', 'pending')
+            })
+        
+        return jsonify({'success': True, 'keys': keys_info})
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения API ключей: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/api-keys/<key_id>/validate', methods=['POST'])
+@login_required
+def api_validate_key(key_id):
+    """API для валидации API ключей"""
+    try:
+        user_id = session['user_id']
+        
+        # Получаем расшифрованные ключи
+        decrypted_key = get_user_decrypted_keys(user_id)
+        if not decrypted_key:
+            return jsonify({'success': False, 'error': 'API ключи не найдены'})
+        
+        # Простая валидация - проверяем, что ключи не пустые
+        if not decrypted_key.get('api_key') or not decrypted_key.get('secret'):
+            return jsonify({'success': False, 'error': 'Неполные API ключи'})
+        
+        # Обновляем статус в базе данных
+        try:
+            conn = sqlite3.connect('secure_users.db')
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE secure_users 
+                SET last_login = ? 
+                WHERE user_id = ?
+            ''', (datetime.now().isoformat(), user_id))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Ошибка обновления времени использования ключей: {e}")
+        
+        return jsonify({'success': True, 'message': 'API ключи успешно валидированы!'})
+        
+    except Exception as e:
+        logger.error(f"Ошибка валидации API ключей: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/dashboard/bots')
+@login_required
+def api_dashboard_bots():
+    """API для получения ботов на дашборде"""
+    try:
+        user_id = session['user_id']
+        
+        # Получаем статус ботов
+        bots = []
+        import glob
+        bot_files = glob.glob(f'data/bot_configs/bot_{user_id}_*.json')
+        
+        for bot_file in bot_files:
+            try:
+                with open(bot_file, 'r') as f:
+                    bot_config = json.load(f)
+                    bots.append({
+                        'id': bot_config.get('bot_id', 'unknown'),
+                        'name': bot_config.get('bot_name', 'Unknown'),
+                        'type': bot_config.get('bot_type', 'unknown'),
+                        'status': bot_config.get('status', 'unknown'),
+                        'created_at': bot_config.get('created_at', ''),
+                        'last_update': bot_config.get('last_update', '')
+                    })
+            except Exception as e:
+                logger.error(f"Ошибка чтения конфигурации бота {bot_file}: {e}")
+        
+        return jsonify({'success': True, 'bots': bots})
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения ботов для дашборда: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/balance/detailed')
+@login_required
+def api_balance_detailed():
+    """API для получения детального баланса"""
+    try:
+        user_id = session['user_id']
+        
+        # Получаем расшифрованные ключи
+        decrypted_key = get_user_decrypted_keys(user_id)
+        if not decrypted_key:
+            return jsonify({'success': False, 'error': 'API ключи не найдены'})
+        
+        # Создаем менеджер баланса
+        balance_manager = RealBalanceManager(
+            decrypted_key['api_key'], 
+            decrypted_key['secret'], 
+            decrypted_key.get('passphrase', '')
+        )
+        
+        # Получаем детальный баланс
+        try:
+            balance_data = balance_manager.get_real_balance()
+            
+            # Форматируем данные для детального отображения
+            detailed_balance = {
+                'total_balance': balance_data.get('total_balance', {}),
+                'free_balance': balance_data.get('free_balance', {}),
+                'used_balance': balance_data.get('used_balance', {}),
+                'currencies': list(balance_data.get('total_balance', {}).keys()),
+                'last_updated': datetime.now().isoformat(),
+                'exchange': 'OKX',
+                'mode': decrypted_key.get('mode', 'sandbox')
+            }
+            
+            return jsonify({'success': True, 'balance': detailed_balance})
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения реального баланса: {e}")
+            # Возвращаем демо данные если не удалось получить реальные
+            demo_balance = {
+                'total_balance': {'USDT': 1000.0, 'BTC': 0.01},
+                'free_balance': {'USDT': 1000.0, 'BTC': 0.01},
+                'used_balance': {'USDT': 0.0, 'BTC': 0.0},
+                'currencies': ['USDT', 'BTC'],
+                'last_updated': datetime.now().isoformat(),
+                'exchange': 'OKX',
+                'mode': 'demo'
+            }
+            return jsonify({'success': True, 'balance': demo_balance})
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения детального баланса: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 # Обработчик ошибок

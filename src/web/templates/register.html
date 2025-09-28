@@ -53,6 +53,19 @@
                             </div>
                             
                             <div class="mb-3">
+                                <label for="key_mode" class="form-label">Режим торговли</label>
+                                <select class="form-select" id="key_mode" name="key_mode" required>
+                                    <option value="">Выберите режим</option>
+                                    <option value="sandbox">Демо/Тест (Sandbox)</option>
+                                    <option value="live">Реальная торговля (Live)</option>
+                                </select>
+                                <div class="form-text">
+                                    <strong>Демо:</strong> Тестовые ключи для обучения<br>
+                                    <strong>Реальная торговля:</strong> Настоящие деньги
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
                                 <label for="api_key" class="form-label">API Key</label>
                                 <input type="text" class="form-control" id="api_key" name="api_key" required>
                             </div>
