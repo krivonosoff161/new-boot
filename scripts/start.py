@@ -12,12 +12,17 @@ def main():
     print("🚀 Enhanced Trading System v3.0")
     print("=" * 50)
     
-    # Переходим в папку веб-интерфейса
-    os.chdir('web_interface')
+    # Получаем путь к корню проекта
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
     
-    # Запускаем веб-интерфейс
-    print("🌐 Запуск веб-интерфейса...")
-    subprocess.run([sys.executable, 'app.py'])
+    # Запускаем основной дашборд
+    print("🌐 Запуск дашборда...")
+    print("📂 Корень проекта:", project_root)
+    
+    # Переходим в корень проекта и запускаем дашборд
+    os.chdir(project_root)
+    subprocess.run([sys.executable, 'run_dashboard.py'])
 
 if __name__ == "__main__":
     main()

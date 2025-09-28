@@ -29,3 +29,5 @@ class NewPairsMonitor:
         # Заглушка для быстрого восстановления
         return new_pairs
 
+
+

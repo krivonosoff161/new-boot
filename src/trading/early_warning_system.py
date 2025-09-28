@@ -30,3 +30,5 @@ class EarlyWarningSystem:
         # Заглушка для быстрого восстановления
         return warnings
 
+
+

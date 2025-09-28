@@ -292,9 +292,9 @@ function loadAvailableApiKeys() {
             const select = document.getElementById('apiKeySelect');
             select.innerHTML = '<option value="">Выберите API ключи...</option>';
             
-            if (data.success && data.api_keys && data.api_keys.length > 0) {
-                data.api_keys.forEach(key => {
-                    if (key.validation_status === 'valid' && key.is_active) {
+            if (data.success && data.keys && data.keys.length > 0) {
+                data.keys.forEach(key => {
+                    if (key.status === 'valid' && key.is_active) {
                         const option = document.createElement('option');
                         option.value = key.id;
                         option.textContent = `${key.exchange.toUpperCase()} (${key.mode === 'sandbox' ? 'Тест' : 'Реальная торговля'}) - ${key.created_at ? new Date(key.created_at).toLocaleDateString() : 'Неизвестно'}`;
@@ -305,6 +305,10 @@ function loadAvailableApiKeys() {
                 if (select.children.length === 1) {
                     select.innerHTML = '<option value="">Нет валидных API ключей</option>';
                     select.disabled = true;
+                } else {
+                    // Убираем disabled, если есть ключи
+                    select.disabled = false;
+                    console.log('API ключи загружены, селект активирован');
                 }
             } else {
                 select.innerHTML = '<option value="">Нет API ключей. Добавьте ключи в разделе "API Ключи"</option>';
@@ -348,9 +352,9 @@ function updateApiKeysForMode(mode) {
             const select = document.getElementById('apiKeySelect');
             select.innerHTML = '<option value="">Выберите API ключи...</option>';
             
-            if (data.success && data.api_keys && data.api_keys.length > 0) {
-                data.api_keys.forEach(key => {
-                    if (key.validation_status === 'valid' && key.is_active) {
+            if (data.success && data.keys && data.keys.length > 0) {
+                data.keys.forEach(key => {
+                    if (key.status === 'valid' && key.is_active) {
                         // Фильтруем ключи по режиму
                         const keyMode = key.mode === 'sandbox' ? 'demo' : 'live';
                         if (keyMode === mode) {

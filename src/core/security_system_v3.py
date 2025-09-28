@@ -27,11 +27,12 @@ class UserCredentials:
     encrypted_secret_key: str
     encrypted_passphrase: str
     encryption_key: str
-    registration_date: datetime
-    last_login: datetime
+    registration_date: str
+    last_login: Optional[datetime]
     login_attempts: int
     is_active: bool
     role: str
+    subscription_status: str = 'free'
 
 @dataclass
 class LoginSession:
@@ -248,10 +249,10 @@ class SecuritySystemV3:
                 cursor.execute('''
                     INSERT INTO secure_users 
                     (user_id, telegram_username, encrypted_api_key, encrypted_secret_key,
-                     encrypted_passphrase, encryption_key, role)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                     encrypted_passphrase, encryption_key, registration_date, role, subscription_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (telegram_user_id, telegram_username, enc_api_key, enc_secret_key,
-                      enc_passphrase, enc_user_key, role))
+                      enc_passphrase, enc_user_key, datetime.now().isoformat(), role, 'premium' if role == 'admin' else 'free'))
                 conn.commit()
             
             # Логируем регистрацию
@@ -395,11 +396,12 @@ class SecuritySystemV3:
                         encrypted_secret_key=result[3],
                         encrypted_passphrase=result[4],
                         encryption_key=result[5],
-                        registration_date=datetime.fromisoformat(result[6]),
+                        registration_date=result[6],
                         last_login=datetime.fromisoformat(result[7]) if result[7] else None,
                         login_attempts=result[8],
                         is_active=bool(result[9]),
-                        role=result[10]
+                        role=result[10],
+                        subscription_status=result[11] if len(result) > 11 else 'free'
                     )
         except Exception as e:
             self.logger.error(f"❌ Ошибка получения учетных данных: {e}")
@@ -468,11 +470,12 @@ class SecuritySystemV3:
                         encrypted_secret_key=result[3],
                         encrypted_passphrase=result[4],
                         encryption_key=result[5],
-                        registration_date=datetime.fromisoformat(result[6]),
+                        registration_date=result[6],
                         last_login=datetime.fromisoformat(result[7]) if result[7] else None,
                         login_attempts=result[8],
                         is_active=bool(result[9]),
-                        role=result[10]
+                        role=result[10],
+                        subscription_status=result[11] if len(result) > 11 else 'free'
                     ))
                 
                 return users

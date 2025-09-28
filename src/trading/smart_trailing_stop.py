@@ -25,3 +25,5 @@ class SmartTrailingStop:
         else:
             return self.base_stop_percent
 
+
+

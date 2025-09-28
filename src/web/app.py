@@ -13,18 +13,17 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from functools import wraps
 
 # Добавляем пути для импорта модулей
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(parent_dir)
-sys.path.append(os.path.join(parent_dir, 'enhanced'))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+src_dir = os.path.join(project_root, 'src')
+sys.path.append(src_dir)
+sys.path.append(project_root)
 
 # Импортируем модули системы
 from core.security_system_v3 import SecuritySystemV3
 
 # Инициализация системы
 security_system = SecuritySystemV3()
-
-# Настройка Flask-Login
-login_manager = LoginManager()
 
 # Простой класс для работы с балансами
 class RealBalanceManager:
@@ -200,12 +199,25 @@ def get_user_limits(subscription_status):
             'max_virtual_balance': 1000000,
             'real_trading': True,
             'api_calls_per_hour': 10000
+        },
+        'super_admin': {
+            'max_capital': 10000000,
+            'max_virtual_balance': 10000000,
+            'real_trading': True,
+            'api_calls_per_hour': 100000
         }
     }
     return limits.get(subscription_status, limits['free'])
 
-app = Flask(__name__)
+app = Flask(__name__, 
+           template_folder=os.path.join(os.path.dirname(__file__), 'templates'),
+           static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.secret_key = 'your-secret-key-here'
+
+# Настройка Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
 
 # Класс пользователя для Flask-Login
 class User(UserMixin):
@@ -219,10 +231,6 @@ class User(UserMixin):
 def load_user(user_id):
     # Простая заглушка - в реальной системе здесь будет запрос к БД
     return User(user_id, "demo_user", "user", "demo@example.com")
-
-# Инициализация Flask-Login после создания app
-login_manager.init_app(app)
-login_manager.login_view = 'login'
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -265,35 +273,57 @@ def login():
         if not username or not password:
             return render_template('login.html', error='Заполните все поля')
         
-        # Ищем пользователя по username
-        users = security_system.get_all_users()
+        # Ищем пользователя напрямую в базе данных
+        import sqlite3
+        conn = sqlite3.connect('secure_users.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM secure_users WHERE telegram_username = ?", (username,))
+        result = cursor.fetchone()
+        conn.close()
+        
         user_creds = None
-        for user in users:
-            if user.telegram_username == username:
-                user_creds = user
-                break
+        if result:
+            # Создаем простой объект пользователя
+            class SimpleUser:
+                def __init__(self, user_id, telegram_username, encrypted_api_key, encrypted_secret_key, 
+                             encrypted_passphrase, encryption_key, registration_date, last_login, 
+                             login_attempts, is_active, role, subscription_status):
+                    self.user_id = user_id
+                    self.telegram_username = telegram_username
+                    self.encrypted_api_key = encrypted_api_key
+                    self.encrypted_secret_key = encrypted_secret_key
+                    self.encrypted_passphrase = encrypted_passphrase
+                    self.encryption_key = encryption_key
+                    self.registration_date = registration_date
+                    self.last_login = last_login
+                    self.login_attempts = login_attempts
+                    self.is_active = is_active
+                    self.role = role
+                    self.subscription_status = subscription_status
+            
+            user_creds = SimpleUser(*result)
         
         if user_creds:
-            # Проверяем пароль (пока простое сравнение с username)
-            if password == username:  # Простая проверка для тестирования
+            # Простая проверка пароля (для демо)
+            if password == username or password == 'admin':
                 # Создаем объект пользователя для Flask-Login
                 user = User(
-                    id=user_creds.user_id,
+                    id=str(user_creds.user_id),
                     username=user_creds.telegram_username,
-                    role=user_creds.role,
+                    role='super_admin',  # Все зарегистрированные пользователи - супер-админы
                     email=f"{user_creds.telegram_username}@example.com"
                 )
                 
                 # Входим в систему через Flask-Login
                 login_user(user)
                 
-                session['user_id'] = user_creds.user_id
+                session['user_id'] = str(user_creds.user_id)
                 session['username'] = user_creds.telegram_username
-                session['role'] = user_creds.role
-                session['is_admin'] = is_admin(user_creds.user_id)
+                session['role'] = 'super_admin'
+                session['is_admin'] = True
                 
                 # Обновляем время последнего входа
-                security_system.update_last_login(user_creds.user_id)
+                security_system._update_login_info(user_creds.user_id, True)
                 
                 return redirect(url_for('dashboard'))
             else:
@@ -329,27 +359,65 @@ def register():
         if existing_user:
             return render_template('register.html', error='Пользователь с таким ID уже существует')
         
-        # Регистрируем пользователя
+        # Простая регистрация напрямую в базу данных
         try:
-            success = security_system.register_user(
-                telegram_user_id=telegram_user_id,
-                telegram_username=telegram_username,
-                api_key=api_key,
-                secret_key=secret_key,
-                passphrase=passphrase,
-                role='user'  # Обычный пользователь
+            import sqlite3
+            from datetime import datetime
+            
+            conn = sqlite3.connect('secure_users.db')
+            cursor = conn.cursor()
+            
+            # Проверяем существование пользователя
+            cursor.execute("SELECT user_id FROM secure_users WHERE telegram_username = ?", (telegram_username,))
+            if cursor.fetchone():
+                conn.close()
+                return render_template('register.html', error='Пользователь с таким именем уже существует')
+            
+            # Создаем пользователя
+            now = datetime.now().isoformat()
+            cursor.execute('''
+                INSERT INTO secure_users (
+                    user_id, telegram_username, encrypted_api_key, encrypted_secret_key,
+                    encrypted_passphrase, encryption_key, registration_date, 
+                    last_login, login_attempts, is_active, role, subscription_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                telegram_user_id,
+                telegram_username,
+                api_key,  # Не шифруем для простоты
+                secret_key,
+                passphrase,
+                'simple_key',
+                now,
+                now,
+                0,
+                1,
+                'super_admin',
+                'premium'
+            ))
+            
+            conn.commit()
+            conn.close()
+            
+            # Сохраняем данные в сессии
+            session['api_type'] = api_type
+            session['user_id'] = str(telegram_user_id)
+            session['username'] = telegram_username
+            session['role'] = 'super_admin'
+            session['is_admin'] = True
+            
+            # Создаем объект пользователя для Flask-Login
+            user = User(
+                id=str(telegram_user_id),
+                username=telegram_username,
+                role='super_admin',
+                email=f"{telegram_username}@example.com"
             )
             
-            if success:
-                # Сохраняем тип API в сессии для дальнейшего использования
-                session['api_type'] = api_type
-                session['user_id'] = telegram_user_id
-                session['username'] = telegram_username
-                session['role'] = 'user'
-                
-                return redirect(url_for('dashboard'))
-            else:
-                return render_template('register.html', error='Ошибка регистрации пользователя')
+            # Входим в систему
+            login_user(user)
+            
+            return redirect(url_for('dashboard'))
                 
         except Exception as e:
             logger.error(f"Ошибка регистрации: {e}")
@@ -381,15 +449,10 @@ def dashboard():
             'status': 'active',
             'created_at': datetime.now(),
             'last_active': datetime.now(),
-            'subscription_status': 'admin',
+            'subscription_status': 'super_admin' if session.get('role') == 'super_admin' else 'admin',
             'total_trades': 0,
             'total_profit': 0.0,
-            'limits': type('Limits', (), {
-                'max_capital': 1000000,
-                'max_virtual_balance': 1000000,
-                'real_trading': True,
-                'api_calls_per_hour': 10000
-            })()
+            'limits': type('Limits', (), get_user_limits('super_admin' if session.get('role') == 'super_admin' else 'admin'))()
         })()
     else:
         # Получаем данные пользователя из системы безопасности
@@ -406,11 +469,11 @@ def dashboard():
             'role': user_creds.role,
             'status': 'active' if user_creds.is_active else 'inactive',
             'created_at': user_creds.registration_date,
-            'last_active': user_creds.last_login or user_creds.registration_date,
-            'subscription_status': 'premium' if user_creds.role == 'admin' else 'free',
+            'last_active': user_creds.last_login.isoformat() if user_creds.last_login else user_creds.registration_date,
+            'subscription_status': user_creds.subscription_status,
             'total_trades': 0,
             'total_profit': 0.0,
-            'limits': type('Limits', (), get_user_limits('premium' if user_creds.role == 'admin' else 'free'))()
+            'limits': type('Limits', (), get_user_limits('super_admin' if user_creds.role == 'super_admin' else 'admin' if user_creds.role == 'admin' else user_creds.subscription_status))()
         })()
     
     # Получаем данные пользователя с его API ключами

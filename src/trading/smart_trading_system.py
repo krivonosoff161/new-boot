@@ -29,3 +29,5 @@ class SmartTradingSystem:
         # Заглушка для быстрого восстановления
         return signals
 
+
+
