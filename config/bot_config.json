@@ -1,0 +1,140 @@
+{
+  "symbols": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT", "ADA/USDT", "DOT/USDT"],
+  "chat_ids": [],
+  "redistribution_interval": 1800,
+  "capital_split": {
+    "grid": 0.6,
+    "scalp": 0.4
+  },
+  "grid": {
+    "min_order_usd": 20,
+    "max_position_size": 200,
+    "exposure_limit": 0.5,
+    "base_spacing": 0.008,
+    "max_levels": 6,
+    "sleep_interval": 15,
+    "order_timeout_seconds": 600,
+    "cci_block": -150,
+    "grid_mode": "futures",
+    "indicators": {
+      "cci": {
+        "timeperiod": 14
+      },
+      "rsi": {
+        "timeperiod": 14
+      },
+      "atr": {
+        "timeperiod": 14
+      },
+      "stoch": {
+        "fastk_period": 14,
+        "slowk_period": 3,
+        "slowk_matype": 0,
+        "slowd_period": 3,
+        "slowd_matype": 0
+      },
+      "macd": {
+        "fastperiod": 12,
+        "slowperiod": 26,
+        "signalperiod": 9
+      },
+      "ema": {
+        "short_period": 12,
+        "long_period": 26
+      },
+      "bb": {
+        "timeperiod": 20,
+        "nbdevup": 2,
+        "nbdevdn": 2
+      }
+    }
+  },
+  "scalp": {
+    "min_order_usd": 15,
+    "max_positions": 8,
+    "position_size_percent": 0.05,
+    "sleep_interval": 5,
+    "signal_threshold": 50,
+    "max_hold_seconds": 180,
+    "tp_pct": 0.15,
+    "sl_pct": 0.25,
+    "fee_rate": 0.0004,
+    "indicators": {
+      "rsi": {
+        "timeperiod": 3
+      },
+      "stoch": {
+        "fastk_period": 3,
+        "slowk_period": 2,
+        "slowk_matype": 0,
+        "slowd_period": 2,
+        "slowd_matype": 0
+      },
+      "macd": {
+        "fastperiod": 3,
+        "slowperiod": 7,
+        "signalperiod": 2
+      },
+      "ema": {
+        "short_period": 3,
+        "long_period": 7
+      },
+      "atr": {
+        "timeperiod": 3
+      },
+      "bb": {
+        "timeperiod": 20,
+        "nbdevup": 2,
+        "nbdevdn": 2
+      }
+    }
+  },
+  "risk": {
+    "max_drawdown_pct": 0.25,
+    "stop_loss_pct": 0.03
+  },
+  "balance_cache_sec": 60,
+  "min_alloc_usd": 200,
+  "adaptive_capital": {
+    "enabled": true,
+    "analysis_period_hours": 4,
+    "reanalysis_interval_hours": 2,
+    "min_hold_time_hours": 4,
+    "floating_profit": {
+      "min_profit_for_trailing": 50.0,
+      "trailing_stop_pct": 0.02,
+      "partial_close_pct": 0.5,
+      "profit_target_pct": 0.1,
+      "reinvestment_threshold": 200.0
+    }
+  },
+  "risk_modes": {
+    "conservative": {
+      "max_drawdown_pct": 5.0,
+      "stop_loss_pct": 2.0,
+      "max_position_pct": 15.0,
+      "max_correlation": 0.5,
+      "min_capital_per_pair": 400.0,
+      "max_pairs": 1,
+      "volatility_range": [2.0, 4.0]
+    },
+    "aggressive": {
+      "max_drawdown_pct": 8.0,
+      "stop_loss_pct": 3.0,
+      "max_position_pct": 8.0,
+      "max_correlation": 0.7,
+      "min_capital_per_pair": 200.0,
+      "max_pairs": 3,
+      "volatility_range": [4.0, 8.0]
+    },
+    "automatic": {
+      "max_drawdown_pct": 6.0,
+      "stop_loss_pct": 2.5,
+      "max_position_pct": 10.0,
+      "max_correlation": 0.6,
+      "min_capital_per_pair": 200.0,
+      "max_pairs": 5,
+      "volatility_range": [3.0, 6.0]
+    }
+  }
+}

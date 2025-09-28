@@ -1,0 +1,40 @@
+# Enhanced Trading System v3.0 - Minimal Dependencies
+# Для быстрого старта и тестирования
+
+# Web Framework
+Flask==2.3.3
+Flask-CORS==4.0.0
+
+# Trading & Finance
+ccxt==4.5.5
+numpy==1.24.3
+pandas==2.0.3
+
+# Database
+SQLAlchemy==2.0.21
+
+# Security & Encryption
+cryptography==41.0.7
+bcrypt==4.0.1
+
+# Configuration & Environment
+python-dotenv==1.0.0
+
+# Async & Concurrency
+aiohttp==3.8.5
+
+# Logging
+loguru==0.7.0
+
+# Testing
+pytest==7.4.2
+
+# Development
+black==23.7.0
+flake8==6.0.0
+
+
+
+
+
+

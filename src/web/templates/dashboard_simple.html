@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Enhanced Trading System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1><i class="fas fa-tachometer-alt"></i> Dashboard</h1>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="container">
+            <!-- Информация о пользователе -->
+            <div class="card">
+                <h2>Информация о пользователе</h2>
+                <p><strong>ID:</strong> {{ user.user_id }}</p>
+                <p><strong>Username:</strong> {{ user.username }}</p>
+                <p><strong>Role:</strong> {{ user.role }}</p>
+                <p><strong>Status:</strong> {{ user.status }}</p>
+            </div>
+
+            <!-- Статистика -->
+            <div class="card">
+                <h2>Статистика</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>${{ "%.2f"|format(stats.total_balance) }}</h3>
+                        <p>Общий баланс</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${{ "%.2f"|format(stats.free_balance) }}</h3>
+                        <p>Свободный баланс</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${{ "%.2f"|format(stats.used_balance) }}</h3>
+                        <p>Используемый баланс</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>{{ stats.open_positions }}</h3>
+                        <p>Открытые позиции</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Отладочная информация -->
+            <div class="card">
+                <h2>Отладочная информация</h2>
+                <p><strong>Источник данных:</strong> {{ stats.data_source }}</p>
+                <p><strong>Реальные данные:</strong> {{ stats.is_real_data }}</p>
+                <p><strong>Последнее обновление:</strong> {{ stats.last_updated }}</p>
+                <p><strong>Профиль:</strong> {{ stats.profile }}</p>
+            </div>
+
+            <!-- Навигация -->
+            <div class="card">
+                <h2>Навигация</h2>
+                <div style="text-align: center;">
+                    <a href="{{ url_for('bots') }}" class="btn">
+                        <i class="fas fa-robot"></i> Управление ботами
+                    </a>
+                    <a href="{{ url_for('settings') }}" class="btn">
+                        <i class="fas fa-cog"></i> Настройки
+                    </a>
+                    <a href="{{ url_for('logout') }}" class="btn btn-danger">
+                        <i class="fas fa-sign-out-alt"></i> Выход
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="container">
+            <p>&copy; 2025 Enhanced Trading System v3.0</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+
+

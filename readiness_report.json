@@ -1,0 +1,13 @@
+{
+  "timestamp": "2025-09-23T16:13:51.545461",
+  "issues": [],
+  "warnings": [
+    "Отсутствуют файлы: web_interface/app.py, enhanced/security_system_v3.py, enhanced/enhanced_controller.py, enhanced/enhanced_grid_bot.py, enhanced/enhanced_scalp_bot.py",
+    "База данных web_interface/secure_users.db не найдена",
+    "База данных web_interface/users.db не найдена",
+    "Отсутствуют директории: user_data",
+    "Отсутствуют пакеты: python-telegram-bot"
+  ],
+  "recommendations": [],
+  "ready": true
+}

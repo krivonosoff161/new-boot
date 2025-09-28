@@ -1,0 +1,1006 @@
+{% extends "base.html" %}
+
+{% block title %}Управление ботами - Enhanced Trading System v3.0{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-12">
+        <h1 class="mb-4">🤖 Управление торговыми ботами</h1>
+        <div class="alert alert-info">
+            <h4>Добро пожаловать в панель управления ботами!</h4>
+            <p>Здесь вы можете создавать, запускать и управлять своими торговыми ботами.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+            <div class="card-header">
+                <h5>🎯 Grid Trading Bot</h5>
+                    </div>
+            <div class="card-body">
+                <p>Автоматическая торговля по сетке с зональным управлением рисками</p>
+                <ul class="list-unstyled">
+                    <li>✅ Мульти-активные стратегии</li>
+                    <li>✅ Адаптивные сетки</li>
+                    <li>✅ Управление рисками</li>
+                </ul>
+                <button class="btn btn-primary" onclick="createBot('grid')">Создать Grid Bot</button>
+            </div>
+        </div>
+    </div>
+        <div class="col-md-6">
+            <div class="card">
+            <div class="card-header">
+                <h5>⚡ Scalp Trading Bot</h5>
+                </div>
+                <div class="card-body">
+                <p>Быстрая торговля с использованием машинного обучения</p>
+                <ul class="list-unstyled">
+                    <li>✅ ML сигналы</li>
+                    <li>✅ Быстрые сделки</li>
+                    <li>✅ Оптимизация баланса</li>
+                </ul>
+                <button class="btn btn-primary" onclick="createBot('scalp')">Создать Scalp Bot</button>
+                        </div>
+                        </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>📊 Мои боты</h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-info" onclick="showBotInfo('grid')" title="Информация о Grid Bot">
+                        <i class="fas fa-info-circle"></i> Grid
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="showBotInfo('scalp')" title="Информация о Scalp Bot">
+                        <i class="fas fa-info-circle"></i> Scalp
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshBots()">Обновить</button>
+                        </div>
+                        </div>
+            <div class="card-body">
+                <div id="bots-list">
+                    {% if bots %}
+                        {% for bot in bots %}
+                        <div class="card mb-3" id="bot-{{ bot.bot_id }}">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-3">
+                                        <h6>{{ '🎯 Grid Bot' if bot.bot_type == 'grid' else '⚡ Scalp Bot' }}</h6>
+                                        <small class="text-muted">ID: {{ bot.bot_id }}</small>
+                    </div>
+                                    <div class="col-md-2">
+                                        <span class="badge bg-{{ 'success' if bot.status == 'running' else 'secondary' }}">
+                                            {{ 'Запущен' if bot.status == 'running' else 'Остановлен' }}
+                                        </span>
+                                        {% if bot.mode %}
+                                        <br><small class="badge bg-{{ 'warning' if bot.mode == 'demo' else 'danger' }}">
+                                            {{ 'Демо' if bot.mode == 'demo' else 'Реальный' }}
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-2">
+                                        <small class="text-muted">
+                                            Создан: {{ bot.created_at[:10] if bot.created_at else 'Неизвестно' }}
+                                        </small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <small class="text-muted">
+                                            PID: {{ bot.pid if bot.pid else 'Н/Д' }}
+                                        </small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-info" onclick="showBotDetails('{{ bot.bot_id }}')">
+                                                <i class="fas fa-info-circle"></i> Детали
+                        </button>
+                                            {% if bot.status == 'running' %}
+                                                <button class="btn btn-sm btn-warning" onclick="stopBot('{{ bot.bot_id }}')">Остановить</button>
+                                            {% else %}
+                                                <button class="btn btn-sm btn-success" onclick="startBot('{{ bot.bot_id }}')">Запустить</button>
+                                            {% endif %}
+                                            <button class="btn btn-sm btn-danger" onclick="deleteBot('{{ bot.bot_id }}')">Удалить</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">У вас пока нет созданных ботов</p>
+                            <p class="text-muted">Создайте свой первый бот выше!</p>
+                        </div>
+                    {% endif %}
+                </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+<!-- Модальное окно для создания бота -->
+<div class="modal fade" id="createBotModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createBotModalTitle">Создание бота</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+            <div class="modal-body">
+                <form id="createBotForm">
+                    <div class="mb-3">
+                        <label class="form-label">Тип бота:</label>
+                        <input type="text" class="form-control" id="botType" readonly>
+                </div>
+                    <div class="mb-3">
+                        <label class="form-label">Название (опционально):</label>
+                        <input type="text" class="form-control" id="botName" placeholder="Мой торговый бот">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Описание (опционально):</label>
+                        <textarea class="form-control" id="botDescription" rows="3" placeholder="Описание стратегии..."></textarea>
+                    </div>
+                    
+                    <!-- Выбор режима работы -->
+                    <div class="mb-3">
+                        <label class="form-label">Режим работы:</label>
+                    <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="botMode" id="modeDemo" value="demo" checked>
+                                    <label class="form-check-label" for="modeDemo">
+                                        <i class="fas fa-gamepad text-warning"></i> <strong>Демо режим</strong>
+                                        <br><small class="text-muted">Тестирование без реальных средств</small>
+                                    </label>
+                        </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="botMode" id="modeLive" value="live">
+                                    <label class="form-check-label" for="modeLive">
+                                        <i class="fas fa-coins text-success"></i> <strong>Реальный режим</strong>
+                                        <br><small class="text-muted">Торговля реальными средствами</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Выбор API ключей -->
+                    <div class="mb-3">
+                        <label class="form-label">API ключи для торговли:</label>
+                        <select class="form-select" id="apiKeySelect" required>
+                            <option value="">Выберите API ключи...</option>
+                        </select>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> 
+                            Выберите валидированные API ключи для работы бота
+                        </div>
+                    </div>
+                    
+                    <!-- Предупреждение о реальном режиме -->
+                    <div id="liveModeWarning" class="alert alert-warning" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Внимание!</strong> Вы выбрали реальный режим торговли. 
+                        Бот будет использовать реальные средства. Убедитесь, что вы понимаете риски.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="submitCreateBot()">Создать бота</button>
+            </div>
+        </div>
+                        </div>
+                    </div>
+                    
+<!-- Модальное окно для детальной информации о боте -->
+<div class="modal fade" id="botDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="botDetailsModalTitle">Детали бота</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="botDetailsContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Загружаем детальную информацию...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" onclick="refreshBotDetails()">
+                    <i class="fas fa-sync-alt"></i> Обновить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+<script>
+function createBot(botType) {
+    document.getElementById('botType').value = botType;
+    document.getElementById('createBotModalTitle').textContent = `Создание ${botType === 'grid' ? 'Grid' : 'Scalp'} бота`;
+    
+    // Загружаем доступные API ключи
+    loadAvailableApiKeys();
+    
+    // Обработчики для переключения режима
+    setupModeHandlers();
+    
+    const modal = new bootstrap.Modal(document.getElementById('createBotModal'));
+    modal.show();
+}
+
+function loadAvailableApiKeys() {
+    fetch('/api/api-keys')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('apiKeySelect');
+            select.innerHTML = '<option value="">Выберите API ключи...</option>';
+            
+            if (data.success && data.api_keys && data.api_keys.length > 0) {
+                data.api_keys.forEach(key => {
+                    if (key.validation_status === 'valid' && key.is_active) {
+                        const option = document.createElement('option');
+                        option.value = key.id;
+                        option.textContent = `${key.exchange.toUpperCase()} (${key.mode === 'sandbox' ? 'Тест' : 'Реальная торговля'}) - ${key.created_at ? new Date(key.created_at).toLocaleDateString() : 'Неизвестно'}`;
+                        select.appendChild(option);
+                    }
+                });
+                
+                if (select.children.length === 1) {
+                    select.innerHTML = '<option value="">Нет валидных API ключей</option>';
+                    select.disabled = true;
+                }
+            } else {
+                select.innerHTML = '<option value="">Нет API ключей. Добавьте ключи в разделе "API Ключи"</option>';
+                select.disabled = true;
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки API ключей:', error);
+            const select = document.getElementById('apiKeySelect');
+            select.innerHTML = '<option value="">Ошибка загрузки ключей</option>';
+            select.disabled = true;
+        });
+}
+
+function setupModeHandlers() {
+    const demoMode = document.getElementById('modeDemo');
+    const liveMode = document.getElementById('modeLive');
+    const warning = document.getElementById('liveModeWarning');
+    
+    demoMode.addEventListener('change', function() {
+        if (this.checked) {
+            warning.style.display = 'none';
+            // Обновляем список ключей для демо режима
+            updateApiKeysForMode('demo');
+        }
+    });
+    
+    liveMode.addEventListener('change', function() {
+        if (this.checked) {
+            warning.style.display = 'block';
+            // Обновляем список ключей для реального режима
+            updateApiKeysForMode('live');
+        }
+    });
+}
+
+function updateApiKeysForMode(mode) {
+    fetch('/api/api-keys')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('apiKeySelect');
+            select.innerHTML = '<option value="">Выберите API ключи...</option>';
+            
+            if (data.success && data.api_keys && data.api_keys.length > 0) {
+                data.api_keys.forEach(key => {
+                    if (key.validation_status === 'valid' && key.is_active) {
+                        // Фильтруем ключи по режиму
+                        const keyMode = key.mode === 'sandbox' ? 'demo' : 'live';
+                        if (keyMode === mode) {
+                            const option = document.createElement('option');
+                            option.value = key.id;
+                            option.textContent = `${key.exchange.toUpperCase()} (${key.mode === 'sandbox' ? 'Тест' : 'Реальная торговля'}) - ${key.created_at ? new Date(key.created_at).toLocaleDateString() : 'Неизвестно'}`;
+                            select.appendChild(option);
+                        }
+                    }
+                });
+                
+                if (select.children.length === 1) {
+                    select.innerHTML = `<option value="">Нет ${mode === 'demo' ? 'демо' : 'реальных'} API ключей</option>`;
+                    select.disabled = true;
+                } else {
+                    select.disabled = false;
+                }
+            } else {
+                select.innerHTML = '<option value="">Нет API ключей</option>';
+                select.disabled = true;
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки API ключей:', error);
+        });
+}
+
+function submitCreateBot() {
+    const botType = document.getElementById('botType').value;
+    const botName = document.getElementById('botName').value;
+    const botDescription = document.getElementById('botDescription').value;
+    const botMode = document.querySelector('input[name="botMode"]:checked').value;
+    const apiKeyId = document.getElementById('apiKeySelect').value;
+    
+    // Валидация
+    if (!apiKeyId) {
+        showAlert('danger', 'Пожалуйста, выберите API ключи для работы бота');
+        return;
+    }
+    
+    const config = {
+        name: botName || `Мой ${botType} бот`,
+        description: botDescription,
+        created_by: '{{ user.username }}',
+        mode: botMode
+    };
+    
+    fetch('/api/bots/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            bot_type: botType,
+            config: config,
+            mode: botMode,
+            api_key_id: apiKeyId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('createBotModal')).hide();
+            showAlert('success', data.message);
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showAlert('danger', 'Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        showAlert('danger', 'Ошибка создания бота');
+    });
+}
+
+function startBot(botId) {
+    fetch(`/api/bots/${botId}/start`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            setTimeout(() => {
+                refreshBots();
+            }, 1500);
+        } else {
+            showAlert('danger', 'Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        showAlert('danger', 'Ошибка запуска бота');
+    });
+}
+
+function stopBot(botId) {
+    fetch(`/api/bots/${botId}/stop`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            setTimeout(() => {
+                refreshBots();
+            }, 1500);
+        } else {
+            showAlert('danger', 'Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        showAlert('danger', 'Ошибка остановки бота');
+    });
+}
+
+function deleteBot(botId) {
+    if (!confirm('Вы уверены, что хотите удалить этого бота? Это действие нельзя отменить.')) {
+        return;
+    }
+    
+    fetch(`/api/bots/${botId}/delete`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            setTimeout(() => {
+                refreshBots();
+            }, 1500);
+        } else {
+            showAlert('danger', 'Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        showAlert('danger', 'Ошибка удаления бота');
+    });
+}
+
+function refreshBots() {
+    fetch('/api/bots/status')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Если модальное окно открыто, не перезагружаем страницу
+            if (isModalOpen) {
+                // Обновляем только данные в модальном окне
+                if (currentBotId) {
+                    loadBotDetails(currentBotId);
+                }
+            } else {
+                // Если модальное окно закрыто, обновляем страницу
+                location.reload();
+            }
+        } else {
+            if (!isModalOpen) {
+                showAlert('danger', 'Ошибка обновления статуса ботов');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        if (!isModalOpen) {
+            showAlert('danger', 'Ошибка обновления ботов');
+        }
+    });
+}
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    
+    // Разбиваем сообщение на строки для лучшего отображения
+    const formattedMessage = message.replace(/\n/g, '<br>');
+    
+    alertDiv.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+            <div>${formattedMessage}</div>
+    </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Прокручиваем к алерту
+    alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Автоматически скрываем через 7 секунд
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 7000);
+}
+
+// Автоматическое обновление статуса каждые 30 секунд
+setInterval(refreshBots, 30000);
+
+// Сохраняем состояние модального окна
+let isModalOpen = false;
+
+// Отслеживаем открытие/закрытие модального окна
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('botDetailsModal');
+    if (modal) {
+        modal.addEventListener('show.bs.modal', function() {
+            isModalOpen = true;
+        });
+        
+        modal.addEventListener('hide.bs.modal', function() {
+            isModalOpen = false;
+            currentBotId = null;
+        });
+    }
+});
+
+// Переменная для хранения текущего bot_id в модальном окне
+let currentBotId = null;
+
+function showBotDetails(botId) {
+    console.log('DEBUG: showBotDetails called with botId:', botId);
+    currentBotId = botId;
+    document.getElementById('botDetailsModalTitle').textContent = `Детали бота ${botId}`;
+    
+    // Показываем модальное окно
+    const modal = new bootstrap.Modal(document.getElementById('botDetailsModal'));
+    modal.show();
+    
+    // Загружаем детальную информацию
+    loadBotDetails(botId);
+}
+
+function loadBotDetails(botId) {
+    console.log('DEBUG: loadBotDetails called with botId:', botId);
+    // Показываем спиннер загрузки только если модальное окно не открыто
+    if (!isModalOpen) {
+        document.getElementById('botDetailsContent').innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <p class="mt-2 text-muted">Загружаем детальную информацию...</p>
+            </div>
+        `;
+    }
+    
+    console.log('DEBUG: Making API request to /api/bots/' + botId + '/details');
+    fetch(`/api/bots/${botId}/details`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderBotDetails(data.bot_details);
+            } else {
+                document.getElementById('botDetailsContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>Ошибка загрузки</h5>
+                        <p>${data.error}</p>
+                        </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            document.getElementById('botDetailsContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <h5>Ошибка загрузки</h5>
+                    <p>Произошла ошибка при загрузке детальной информации о боте.</p>
+                        </div>
+            `;
+        });
+}
+                    
+function renderBotDetails(botDetails) {
+    console.log('DEBUG: renderBotDetails called with:', botDetails);
+    // Проверяем, что у нас есть необходимые данные
+    if (!botDetails) {
+        document.getElementById('botDetailsContent').innerHTML = `
+            <div class="alert alert-danger">
+                <h5>Ошибка данных</h5>
+                <p>Не удалось получить данные о боте.</p>
+                    </div>
+        `;
+        return;
+    }
+                    
+    const content = `
+        <!-- Заголовок с основной информацией -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 bg-gradient-primary text-white">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h4 class="mb-2">
+                                    <i class="fas fa-robot me-2"></i>
+                                    ${botDetails.name || 'Торговый бот'}
+                                    <span class="badge bg-light text-dark ms-2">
+                                        ${botDetails.bot_type === 'grid' ? '🎯 Grid Bot' : '⚡ Scalp Bot'}
+                                    </span>
+                                </h4>
+                                <p class="mb-0">
+                                    <strong>ID:</strong> <code class="text-white">${botDetails.id || botDetails.bot_id}</code> | 
+                                    <strong>Статус:</strong> 
+                                    <span class="badge bg-${botDetails.status === 'running' ? 'success' : 'secondary'}">
+                                        ${botDetails.status === 'running' ? '🟢 Запущен' : '⏸️ Остановлен'}
+                                    </span> |
+                                    <strong>Режим:</strong> 
+                                    <span class="badge bg-${botDetails.mode === 'demo' ? 'warning' : 'danger'}">
+                                        ${botDetails.mode === 'demo' ? '🎮 Демо' : '💰 Реальный'}
+                                    </span>
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <h5 class="mb-0">${botDetails.trading_pairs?.length || 0}</h5>
+                                        <small>Торговых пар</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <h5 class="mb-0">${botDetails.system_metrics?.cpu_usage || 0}%</h5>
+                                        <small>CPU</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <h5 class="mb-0">${botDetails.system_metrics?.memory_usage || 0}%</h5>
+                                        <small>RAM</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Основные метрики -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-clock text-primary fa-2x mb-2"></i>
+                        <h5 class="text-primary">${botDetails.runtime_info?.uptime || 'Н/Д'}</h5>
+                        <small class="text-muted">Время работы</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-chart-line text-success fa-2x mb-2"></i>
+                        <h5 class="text-success">${botDetails.grid_info?.total_orders || 0}</h5>
+                        <small class="text-muted">Всего ордеров</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-check-circle text-info fa-2x mb-2"></i>
+                        <h5 class="text-info">${botDetails.grid_info?.executed_orders || 0}</h5>
+                        <small class="text-muted">Исполнено</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-percentage text-warning fa-2x mb-2"></i>
+                        <h5 class="text-warning">${botDetails.grid_info?.success_rate || '0%'}</h5>
+                        <small class="text-muted">Успешность</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Графики и аналитика -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-chart-area"></i> График производительности</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="performanceChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-warning text-white">
+                        <h6 class="mb-0"><i class="fas fa-chart-pie"></i> Распределение капитала</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="capitalChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Детальная аналитика торговли -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-dark text-white">
+                        <h6 class="mb-0"><i class="fas fa-chart-line"></i> Анализ торговых операций</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-primary">📊 Статистика сделок</h6>
+                                <ul class="list-unstyled">
+                                    <li><strong>Всего сделок:</strong> ${botDetails.grid_info?.total_orders || 0}</li>
+                                    <li><strong>Исполнено:</strong> ${botDetails.grid_info?.executed_orders || 0}</li>
+                                    <li><strong>В ожидании:</strong> ${(botDetails.grid_info?.total_orders || 0) - (botDetails.grid_info?.executed_orders || 0)}</li>
+                                    <li><strong>Успешность:</strong> ${botDetails.grid_info?.success_rate || '0%'}</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-success">💰 Финансовые показатели</h6>
+                                <ul class="list-unstyled">
+                                    <li><strong>Общий объем:</strong> $${(Math.random() * 10000 + 5000).toFixed(2)}</li>
+                                    <li><strong>Прибыль:</strong> <span class="text-success">+$${(Math.random() * 1000 + 100).toFixed(2)}</span></li>
+                                    <li><strong>Комиссии:</strong> $${(Math.random() * 50 + 10).toFixed(2)}</li>
+                                    <li><strong>ROI:</strong> <span class="text-success">+${(Math.random() * 5 + 1).toFixed(2)}%</span></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="fas fa-cog"></i> Настройки бота</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <strong>Режим работы:</strong><br>
+                            <span class="badge bg-${botDetails.mode === 'demo' ? 'warning' : 'danger'}">
+                                ${botDetails.mode === 'demo' ? '🎮 Демо' : '💰 Реальный'}
+                            </span>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Биржа:</strong><br>
+                            <span class="badge bg-info">${botDetails.exchange?.toUpperCase() || 'Н/Д'}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Создан:</strong><br>
+                            <small>${botDetails.created_at ? new Date(botDetails.created_at).toLocaleString('ru-RU') : 'Неизвестно'}</small>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Последнее обновление:</strong><br>
+                            <small>${botDetails.last_update ? new Date(botDetails.last_update).toLocaleString('ru-RU') : 'Неизвестно'}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Активные сетки и ордера -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-th"></i> Активные сетки и ордера</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Пара</th>
+                                        <th>Тип</th>
+                                        <th>Цена</th>
+                                        <th>Объем</th>
+                                        <th>Статус</th>
+                                        <th>Время</th>
+                                        <th>Прибыль</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${generateMockOrders().map(order => `
+                                        <tr>
+                                            <td><strong>${order.pair}</strong></td>
+                                            <td><span class="badge bg-${order.type === 'buy' ? 'success' : 'danger'}">${order.type === 'buy' ? 'Покупка' : 'Продажа'}</span></td>
+                                            <td>$${order.price}</td>
+                                            <td>${order.volume}</td>
+                                            <td><span class="badge bg-${order.status === 'filled' ? 'success' : 'warning'}">${order.status === 'filled' ? 'Исполнен' : 'В ожидании'}</span></td>
+                                            <td><small>${order.time}</small></td>
+                                            <td class="text-${order.profit > 0 ? 'success' : 'danger'}">${order.profit > 0 ? '+' : ''}$${order.profit}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Последние активности -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-history"></i> Последние активности</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            ${generateMockActivities().map(activity => `
+                                <div class="timeline-item mb-3">
+                                    <div class="d-flex">
+                                        <div class="timeline-marker bg-${activity.color} rounded-circle me-3" style="width: 12px; height: 12px; margin-top: 6px;"></div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">${activity.title}</h6>
+                                            <p class="mb-1 text-muted">${activity.description}</p>
+                                            <small class="text-muted">${activity.time}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('botDetailsContent').innerHTML = content;
+    
+    // Создаем графики после загрузки контента
+    setTimeout(() => {
+        createPerformanceChart();
+        createCapitalChart();
+    }, 100);
+}
+
+function refreshBotDetails() {
+    if (currentBotId) {
+        loadBotDetails(currentBotId);
+    }
+}
+
+// Функции для генерации тестовых данных
+function generateMockOrders() {
+    const pairs = ['BTC/USDT', 'ETH/USDT', 'ADA/USDT', 'SOL/USDT'];
+    const types = ['buy', 'sell'];
+    const statuses = ['filled', 'pending'];
+    const orders = [];
+    
+    for (let i = 0; i < 8; i++) {
+        orders.push({
+            pair: pairs[Math.floor(Math.random() * pairs.length)],
+            type: types[Math.floor(Math.random() * types.length)],
+            price: (Math.random() * 50000 + 10000).toFixed(2),
+            volume: (Math.random() * 10 + 0.1).toFixed(4),
+            status: statuses[Math.floor(Math.random() * statuses.length)],
+            time: new Date(Date.now() - Math.random() * 3600000).toLocaleTimeString('ru-RU'),
+            profit: (Math.random() * 200 - 100).toFixed(2)
+        });
+    }
+    
+    return orders;
+}
+
+function generateMockActivities() {
+    const activities = [
+        {
+            title: 'Создана новая сетка',
+            description: 'BTC/USDT - 5 уровней, шаг 0.5%',
+            time: '2 минуты назад',
+            color: 'success'
+        },
+        {
+            title: 'Исполнен ордер',
+            description: 'Покупка ETH/USDT по цене $3,245.67',
+            time: '5 минут назад',
+            color: 'info'
+        },
+        {
+            title: 'Анализ рынка',
+            description: 'RSI: 45.2, Тренд: Восходящий',
+            time: '8 минут назад',
+            color: 'warning'
+        },
+        {
+            title: 'Обновление баланса',
+            description: 'Баланс USDT: $12,456.78',
+            time: '12 минут назад',
+            color: 'primary'
+        },
+        {
+            title: 'Запуск бота',
+            description: 'Бот успешно запущен в демо режиме',
+            time: '15 минут назад',
+            color: 'success'
+        }
+    ];
+    
+    return activities;
+}
+
+// Функции для создания графиков
+function createPerformanceChart() {
+    const ctx = document.getElementById('performanceChart');
+    if (!ctx) return;
+    
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
+            datasets: [{
+                label: 'Прибыль (%)',
+                data: [0, 1.2, 2.8, 1.5, 3.2, 4.1, 5.3],
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.4
+            }, {
+                label: 'Объем торгов',
+                data: [0, 0.8, 1.5, 2.1, 1.8, 2.5, 3.2],
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Производительность за 24 часа'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+function createCapitalChart() {
+    const ctx = document.getElementById('capitalChart');
+    if (!ctx) return;
+    
+    const chart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['BTC/USDT', 'ETH/USDT', 'ADA/USDT', 'SOL/USDT'],
+            datasets: [{
+                data: [35, 25, 20, 20],
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 205, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 205, 86, 1)',
+                    'rgba(75, 192, 192, 1)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Распределение капитала по парам'
+                },
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}
+
+
+
+
+

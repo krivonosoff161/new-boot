@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block title %}Enhanced Trading Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Заголовок и приветствие -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="mb-0">🚀 Enhanced Trading Dashboard</h1>
+            <p class="text-muted">Добро пожаловать, <strong id="username">{{ current_user.username }}</strong>! 
+            Ваша роль: <span class="badge bg-primary" id="user-role">{{ current_user.role }}</span></p>
+        </div>
+    </div>
+
+    <!-- Статистические карточки -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title" id="total-bots">0</h4>
+                            <p class="card-text">Всего ботов</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-robot fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title" id="running-bots">0</h4>
+                            <p class="card-text">Запущенных ботов</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-play-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title" id="valid-keys">0</h4>
+                            <p class="card-text">Валидных API ключей</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-key fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title" id="total-exchanges">0</h4>
+                            <p class="card-text">Подключенных бирж</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-exchange-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основной контент -->
+    <div class="row">
+        <!-- Боты -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">🤖 Ваши торговые боты</h5>
+                    <a href="/bots" class="btn btn-sm btn-outline-primary">Управление</a>
+                </div>
+                <div class="card-body">
+                    <div id="bots-list">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Загрузка...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Загружаем данные о ботах...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Балансы -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">💰 Балансы на биржах</h5>
+                    <a href="/api-keys" class="btn btn-sm btn-outline-primary">API Ключи</a>
+                </div>
+                <div class="card-body">
+                    <div id="balances-list">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Загрузка...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Загружаем балансы...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Быстрые действия -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">⚡ Быстрые действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <a href="/bots" class="btn btn-primary w-100">
+                                <i class="fas fa-plus"></i> Создать бота
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/api-keys" class="btn btn-success w-100">
+                                <i class="fas fa-key"></i> Добавить API ключи
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <button class="btn btn-info w-100" onclick="refreshDashboard()">
+                                <i class="fas fa-sync-alt"></i> Обновить данные
+                            </button>
+                        </div>
+                        {% if current_user.role in ['admin', 'super_admin'] %}
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin" class="btn btn-warning w-100">
+                                <i class="fas fa-cog"></i> Админ панель
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для просмотра всех балансов -->
+<div class="modal fade" id="balancesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="balancesModalTitle">Балансы</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="balancesModalContent">
+                    <!-- Содержимое будет загружено динамически -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Глобальные переменные
+let dashboardData = {
+    stats: null,
+    bots: [],
+    balances: []
+};
+
+// Загрузка данных дашборда
+async function loadDashboardData() {
+    try {
+        // Загружаем статистику
+        const statsResponse = await fetch('/api/dashboard/stats');
+        const statsData = await statsResponse.json();
+        
+        if (statsData.success) {
+            dashboardData.stats = statsData.stats;
+            updateStatsCards(statsData.stats);
+        }
+        
+        // Загружаем данные о ботах
+        const botsResponse = await fetch('/api/dashboard/bots');
+        const botsData = await botsResponse.json();
+        
+        if (botsData.success) {
+            dashboardData.bots = botsData.bots;
+            updateBotsList(botsData.bots);
+        }
+        
+        // Загружаем балансы
+        const balancesResponse = await fetch('/api/dashboard/balances');
+        const balancesData = await balancesResponse.json();
+        
+        if (balancesData.success) {
+            dashboardData.balances = balancesData.balances;
+            updateBalancesList(balancesData.balances);
+        }
+        
+    } catch (error) {
+        console.error('Ошибка загрузки данных дашборда:', error);
+        showAlert('danger', 'Ошибка загрузки данных дашборда');
+    }
+}
+
+// Обновление статистических карточек
+function updateStatsCards(stats) {
+    document.getElementById('total-bots').textContent = stats.bots.total;
+    document.getElementById('running-bots').textContent = stats.bots.running;
+    document.getElementById('valid-keys').textContent = stats.api_keys.valid;
+    document.getElementById('total-exchanges').textContent = stats.api_keys.exchanges.length;
+}
+
+// Обновление списка ботов
+function updateBotsList(bots) {
+    const botsList = document.getElementById('bots-list');
+    
+    if (bots.length === 0) {
+        botsList.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-robot fa-3x text-muted mb-3"></i>
+                <h6 class="text-muted">У вас пока нет ботов</h6>
+                <p class="text-muted">Создайте своего первого торгового бота!</p>
+                <a href="/bots" class="btn btn-primary">Создать бота</a>
+            </div>
+        `;
+        return;
+    }
+    
+    let botsHTML = '';
+    bots.forEach(bot => {
+        const statusClass = bot.status === 'running' ? 'success' : 'secondary';
+        const statusIcon = bot.status === 'running' ? 'play-circle' : 'pause-circle';
+        const uptimeText = bot.uptime ? `<small class="text-muted">Время работы: ${bot.uptime}</small>` : '';
+        
+        botsHTML += `
+            <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
+                <div>
+                    <h6 class="mb-1">
+                        <i class="fas fa-${bot.bot_type === 'grid' ? 'th' : 'bolt'}"></i>
+                        ${bot.bot_type === 'grid' ? 'Grid Bot' : 'Scalp Bot'}
+                        <span class="badge bg-${statusClass} ms-2">
+                            <i class="fas fa-${statusIcon}"></i>
+                            ${bot.status === 'running' ? 'Запущен' : 'Остановлен'}
+                        </span>
+                    </h6>
+                    <small class="text-muted">ID: ${bot.bot_id}</small><br>
+                    ${uptimeText}
+                </div>
+                <div>
+                    <a href="/bots" class="btn btn-sm btn-outline-primary">Управление</a>
+                </div>
+            </div>
+        `;
+    });
+    
+    botsList.innerHTML = botsHTML;
+}
+
+// Обновление списка балансов
+function updateBalancesList(balances) {
+    const balancesList = document.getElementById('balances-list');
+    
+    if (balances.length === 0) {
+        balancesList.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-wallet fa-3x text-muted mb-3"></i>
+                <h6 class="text-muted">Нет подключенных бирж</h6>
+                <p class="text-muted">Добавьте API ключи для просмотра балансов</p>
+                <a href="/api-keys" class="btn btn-primary">Добавить API ключи</a>
+            </div>
+        `;
+        return;
+    }
+    
+    let balancesHTML = '';
+    balances.forEach(exchange => {
+        const modeClass = exchange.mode === 'live' ? 'danger' : 'warning';
+        const modeText = exchange.mode === 'live' ? 'Реальная торговля' : 'Демо режим';
+        
+        balancesHTML += `
+            <div class="mb-3 p-3 border rounded">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">
+                        <i class="fas fa-exchange-alt"></i>
+                        ${exchange.exchange}
+                        <span class="badge bg-${modeClass} ms-2">${modeText}</span>
+                    </h6>
+                    <span class="badge bg-info">${exchange.total_currencies} валют</span>
+                </div>
+        `;
+        
+        if (exchange.error) {
+            balancesHTML += `
+                <div class="alert alert-warning mb-0">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Ошибка: ${exchange.error}
+                </div>
+            `;
+        } else if (exchange.balances.length === 0) {
+            balancesHTML += `
+                <div class="text-muted">
+                    <i class="fas fa-info-circle"></i>
+                    Нет активных балансов
+                </div>
+            `;
+        } else {
+            exchange.balances.slice(0, 3).forEach(balance => {
+                balancesHTML += `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">${balance.currency}</span>
+                        <span>${parseFloat(balance.total).toFixed(6)}</span>
+                    </div>
+                `;
+            });
+            
+            if (exchange.balances.length > 3) {
+                balancesHTML += `
+                    <div class="text-center mt-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="showAllBalances('${exchange.exchange}', ${JSON.stringify(exchange.balances).replace(/"/g, '&quot;')})">
+                            <i class="fas fa-eye"></i> Показать все ${exchange.balances.length} валют
+                        </button>
+                    </div>
+                `;
+            }
+        }
+        
+        balancesHTML += `</div>`;
+    });
+    
+    balancesList.innerHTML = balancesHTML;
+}
+
+// Обновление дашборда
+function refreshDashboard() {
+    const refreshBtn = event.target;
+    const originalText = refreshBtn.innerHTML;
+    
+    refreshBtn.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Обновление...';
+    refreshBtn.disabled = true;
+    
+    loadDashboardData().finally(() => {
+        refreshBtn.innerHTML = originalText;
+        refreshBtn.disabled = false;
+        showAlert('success', 'Данные обновлены');
+    });
+}
+
+// Функция для показа уведомлений
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Автоматическое обновление каждые 30 секунд
+setInterval(loadDashboardData, 30000);
+
+// Функция для показа всех балансов
+function showAllBalances(exchangeName, balances) {
+    const modal = new bootstrap.Modal(document.getElementById('balancesModal'));
+    const title = document.getElementById('balancesModalTitle');
+    const content = document.getElementById('balancesModalContent');
+    
+    title.textContent = `Все балансы ${exchangeName}`;
+    
+    let contentHTML = `
+        <div class="row">
+            <div class="col-12">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Валюта</th>
+                                <th>Общий баланс</th>
+                                <th>Свободно</th>
+                                <th>В ордерах</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    `;
+    
+    balances.forEach(balance => {
+        const currency = balance.currency;
+        const total = parseFloat(balance.total).toFixed(6);
+        const free = parseFloat(balance.free).toFixed(6);
+        const used = parseFloat(balance.used).toFixed(6);
+        
+        contentHTML += `
+            <tr>
+                <td><strong>${currency}</strong></td>
+                <td>${total}</td>
+                <td>${free}</td>
+                <td>${used}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="analyzePair('${currency}')">
+                        <i class="fas fa-chart-line"></i> Анализ
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    contentHTML += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Совет:</strong> Для торговли выберите пары с достаточным балансом и высокой ликвидностью.
+                </div>
+            </div>
+        </div>
+    `;
+    
+    content.innerHTML = contentHTML;
+    modal.show();
+}
+
+// Функция для анализа торговой пары (заглушка для будущей реализации)
+function analyzePair(currency) {
+    showAlert('info', `Анализ пары ${currency}/USDT будет добавлен в следующих версиях`);
+}
+
+// Загрузка данных при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+});
+</script>
+{% endblock %}

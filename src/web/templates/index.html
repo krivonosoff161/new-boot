@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Главная - Enhanced Trading System v3.0{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="jumbotron bg-primary text-white p-5 rounded mb-4">
+            <h1 class="display-4">🚀 Enhanced Trading System v3.0</h1>
+            <p class="lead">Коммерческая торговая система с продвинутыми возможностями</p>
+            <hr class="my-4">
+            <p>Система включает в себя Grid и Scalp торговые стратегии, управление рисками, машинное обучение и многое другое.</p>
+            {% if not current_user.is_authenticated %}
+                <a class="btn btn-light btn-lg" href="{{ url_for('register') }}" role="button">Начать торговлю</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">🎯 Grid Trading</h5>
+                <p class="card-text">Автоматическая торговля по сетке с зональным управлением рисками</p>
+                <ul class="list-unstyled">
+                    <li>✅ Мульти-активные стратегии</li>
+                    <li>✅ Адаптивные сетки</li>
+                    <li>✅ Управление рисками</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">⚡ Scalp Trading</h5>
+                <p class="card-text">Быстрая торговля с использованием машинного обучения</p>
+                <ul class="list-unstyled">
+                    <li>✅ ML сигналы</li>
+                    <li>✅ Быстрые сделки</li>
+                    <li>✅ Оптимизация баланса</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">🛡️ Безопасность</h5>
+                <p class="card-text">Многоуровневая система безопасности и управления пользователями</p>
+                <ul class="list-unstyled">
+                    <li>✅ 2FA аутентификация</li>
+                    <li>✅ Шифрование данных</li>
+                    <li>✅ Роли и права доступа</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if current_user.is_authenticated %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Добро пожаловать, {{ current_user.username }}!</h5>
+                <p class="card-text">Ваша роль: <span class="badge bg-{{ 'danger' if current_user.role == 'super_admin' else 'primary' }}">{{ current_user.role }}</span></p>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Перейти к дашборду</a>
+                {% if current_user.role in ['admin', 'super_admin'] %}
+                    <a href="{{ url_for('admin') }}" class="btn btn-warning">Админ панель</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
