@@ -383,6 +383,13 @@ function updateApiKeysForMode(mode) {
 }
 
 function submitCreateBot() {
+    // Защита от множественного создания
+    const submitButton = document.querySelector('#createBotModal .btn-success');
+    if (submitButton && submitButton.disabled) {
+        console.log('⚠️ Создание уже в процессе...');
+        return;
+    }
+    
     const botType = document.getElementById('botType').value;
     const botName = document.getElementById('botName').value;
     const botDescription = document.getElementById('botDescription').value;
@@ -393,6 +400,12 @@ function submitCreateBot() {
     if (!apiKeyId) {
         showAlert('danger', 'Пожалуйста, выберите API ключи для работы бота');
         return;
+    }
+    
+    // Блокируем кнопку во время создания
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Создаем...';
     }
     
     const config = {
@@ -408,10 +421,12 @@ function submitCreateBot() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            bot_type: botType,
-            config: config,
+            botType: botType,
+            botName: document.getElementById('botName').value || `${botType.toUpperCase()} Bot ${Date.now()}`,
+            apiKeyId: apiKeyId,
             mode: botMode,
-            api_key_id: apiKeyId
+            tradingPairs: [],
+            settings: config
         })
     })
     .then(response => response.json())
@@ -419,9 +434,11 @@ function submitCreateBot() {
         if (data.success) {
             bootstrap.Modal.getInstance(document.getElementById('createBotModal')).hide();
             showAlert('success', data.message);
+            
+            // Обновляем список ботов без перезагрузки страницы
             setTimeout(() => {
-                location.reload();
-            }, 1500);
+                refreshBots();
+            }, 500);
         } else {
             showAlert('danger', 'Ошибка: ' + data.error);
         }
@@ -429,6 +446,14 @@ function submitCreateBot() {
     .catch(error => {
         console.error('Ошибка:', error);
         showAlert('danger', 'Ошибка создания бота');
+    })
+    .finally(() => {
+        // Восстанавливаем кнопку в любом случае
+        const submitButton = document.querySelector('#createBotModal .btn-success');
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.innerHTML = '<i class="fas fa-plus"></i> Создать бота';
+        }
     });
 }
 
@@ -499,6 +524,87 @@ function deleteBot(botId) {
     });
 }
 
+function updateBotsList(bots) {
+    """Обновление списка ботов в DOM"""
+    const botsList = document.getElementById('bots-list');
+    
+    if (!bots || bots.length === 0) {
+        botsList.innerHTML = `
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-robot fa-3x mb-3"></i>
+                <h5>У вас пока нет ботов</h5>
+                <p>Создайте первого бота для начала торговли</p>
+                <button class="btn btn-primary" onclick="createBot('grid')">
+                    <i class="fas fa-plus"></i> Создать Grid Bot
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    let botsHtml = '';
+    bots.forEach(bot => {
+        const statusColor = {
+            'running': 'success',
+            'stopped': 'secondary', 
+            'created': 'info',
+            'error': 'danger'
+        }[bot.status] || 'secondary';
+        
+        const statusIcon = {
+            'running': 'play',
+            'stopped': 'stop',
+            'created': 'plus',
+            'error': 'exclamation-triangle'
+        }[bot.status] || 'question';
+        
+        botsHtml += `
+            <div class="card mb-3" id="bot-${bot.id}">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-3">
+                            <h6>${bot.bot_type === 'grid' ? '🎯 Grid Bot' : '⚡ Scalp Bot'}</h6>
+                            <small class="text-muted">${bot.bot_name || bot.id}</small>
+                        </div>
+                        <div class="col-md-2">
+                            <span class="badge bg-${statusColor}">
+                                <i class="fas fa-${statusIcon}"></i> ${bot.status}
+                            </span>
+                        </div>
+                        <div class="col-md-2">
+                            <span class="badge bg-${bot.mode === 'demo' ? 'warning' : 'success'}">
+                                ${bot.mode === 'demo' ? 'Demo' : 'Live'}
+                            </span>
+                        </div>
+                        <div class="col-md-2">
+                            <small class="text-muted">${bot.created_at ? new Date(bot.created_at).toLocaleDateString() : 'Неизвестно'}</small>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-success" onclick="startBot('${bot.id}')" ${bot.status === 'running' ? 'disabled' : ''}>
+                                    <i class="fas fa-play"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="stopBot('${bot.id}')" ${bot.status === 'stopped' ? 'disabled' : ''}>
+                                    <i class="fas fa-stop"></i>
+                                </button>
+                                <button class="btn btn-outline-info" onclick="loadBotDetails('${bot.id}')">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="deleteBot('${bot.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    botsList.innerHTML = botsHtml;
+    console.log(`✅ Обновлен список ботов: ${bots.length} ботов`);
+}
+
 function refreshBots() {
     // Защита от множественных запросов
     if (isRefreshing) {
@@ -519,8 +625,8 @@ function refreshBots() {
                     loadBotDetails(currentBotId);
                 }
             } else {
-                // Если модальное окно закрыто, обновляем страницу
-                location.reload();
+                // Обновляем список ботов через DOM
+                updateBotsList(data.bots || []);
             }
         } else {
             if (!isModalOpen) {
