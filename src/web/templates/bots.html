@@ -278,7 +278,7 @@
                 <h5 class="modal-title" id="botDetailsModalLabel">
                     <i class="fas fa-robot"></i> Детали бота
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть" onclick="closeBotDetailsModal()"></button>
             </div>
             <div class="modal-body">
                 <div id="botDetailsContent">
@@ -699,35 +699,35 @@ function loadBotDetails(botId) {
         
         console.log('Элемент botDetailsModal найден:', modalElement);
         
-        // Пробуем два способа открытия модального окна
-        try {
-            // Способ 1: Bootstrap 5
-            const modal = new bootstrap.Modal(modalElement);
-            modal.show();
-            console.log('Модальное окно открыто через Bootstrap 5');
-        } catch (e) {
-            console.error('Ошибка Bootstrap 5:', e);
-            
-            // Способ 2: jQuery Bootstrap (fallback)
-            if (typeof $ !== 'undefined') {
-                $(modalElement).modal('show');
-                console.log('Модальное окно открыто через jQuery');
-            } else {
-                // Способ 3: прямое управление CSS
-                modalElement.style.display = 'block';
-                modalElement.classList.add('show');
-                document.body.classList.add('modal-open');
-                console.log('Модальное окно открыто через CSS');
-            }
-        }
-        
-        // Устанавливаем заголовок
+        // Устанавливаем заголовок СРАЗУ
         const titleElement = document.getElementById('botDetailsModalLabel');
         if (titleElement) {
             titleElement.innerHTML = `<i class="fas fa-robot"></i> Детали бота ${botId}`;
         }
         
-        // Загружаем данные
+        // Принудительно открываем модальное окно через CSS (самый надежный способ)
+        console.log('🔧 Принудительно открываем модальное окно...');
+        
+        modalElement.style.display = 'block';
+        modalElement.classList.add('show');
+        modalElement.classList.add('d-block');
+        modalElement.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        
+        // Добавляем backdrop
+        let backdrop = document.getElementById('modal-backdrop-custom');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show';
+            backdrop.id = 'modal-backdrop-custom';
+            document.body.appendChild(backdrop);
+        }
+        
+        console.log('✅ Модальное окно принудительно открыто через CSS');
+        console.log('🔍 Проверяем классы после открытия:', modalElement.className);
+        console.log('🔍 Проверяем стиль display:', modalElement.style.display);
+        
+        // ПОТОМ загружаем данные
         loadBotDetailsData(botId);
         
     } catch (error) {
@@ -845,7 +845,41 @@ function renderBotDetails(bot, charts, metrics, logs) {
     
     console.log('Безопасные данные бота:', safeBot);
     
-    content.innerHTML = `
+    // ДИАГНОСТИКА И ПРИНУДИТЕЛЬНОЕ ОТКРЫТИЕ МОДАЛЬНОГО ОКНА
+    const modalElement = document.getElementById('botDetailsModal');
+    console.log('Модальное окно в DOM:', !!modalElement);
+    console.log('Модальное окно видимое ДО:', modalElement ? modalElement.style.display : 'элемент не найден');
+    console.log('Классы ДО:', modalElement ? modalElement.className : 'элемент не найден');
+    
+    // ПРИНУДИТЕЛЬНО ОТКРЫВАЕМ МОДАЛЬНОЕ ОКНО ЗДЕСЬ
+    if (modalElement) {
+        console.log('🚀 ПРИНУДИТЕЛЬНО ОТКРЫВАЕМ МОДАЛЬНОЕ ОКНО');
+        
+        modalElement.style.display = 'block';
+        modalElement.classList.add('show');
+        modalElement.classList.add('d-block');
+        modalElement.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        
+        // Добавляем backdrop
+        let backdrop = document.getElementById('modal-backdrop-force');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show';
+            backdrop.id = 'modal-backdrop-force';
+            document.body.appendChild(backdrop);
+        }
+        
+        console.log('✅ МОДАЛЬНОЕ ОКНО ПРИНУДИТЕЛЬНО ОТКРЫТО!');
+        console.log('🔍 Классы ПОСЛЕ:', modalElement.className);
+        console.log('🔍 Display ПОСЛЕ:', modalElement.style.display);
+    }
+    
+    // ДИАГНОСТИКА ВСТАВКИ HTML
+    console.log('🔍 Контейнер для вставки HTML:', content);
+    console.log('🔍 HTML контейнера ДО вставки:', content ? content.innerHTML : 'контейнер не найден');
+    
+    const newHTML = `
         <!-- Навигация по вкладкам -->
         <ul class="nav nav-tabs" id="botDetailsTabs" role="tablist">
             <li class="nav-item" role="presentation">
@@ -1009,6 +1043,14 @@ function renderBotDetails(bot, charts, metrics, logs) {
                             </div>
                             <div class="card-body">
                                 <canvas id="profitChart" width="400" height="200"></canvas>
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="updateLiveChart('${safeBot.basic_info.id}')">
+                                        <i class="fas fa-sync"></i> Обновить график
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" onclick="loadRealPerformance('${safeBot.basic_info.id}')">
+                                        <i class="fas fa-chart-bar"></i> Реальные данные
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1025,19 +1067,22 @@ function renderBotDetails(bot, charts, metrics, logs) {
                             </div>
                             <div class="card-body">
                                 <div class="form-check form-switch mb-3">
-                                    <input class="form-check-input" type="checkbox" id="autoRebalance" ${safeBot.automation_settings.auto_rebalance ? 'checked' : ''}>
+                                    <input class="form-check-input" type="checkbox" id="autoRebalance" ${safeBot.automation_settings.auto_rebalance ? 'checked' : ''} 
+                                           onchange="toggleAutomation('${safeBot.basic_info.id}', 'auto_rebalance', this.checked)">
                                     <label class="form-check-label" for="autoRebalance">
                                         Автоматическая ребалансировка
                                     </label>
                                 </div>
                                 <div class="form-check form-switch mb-3">
-                                    <input class="form-check-input" type="checkbox" id="autoPairSelection" ${safeBot.automation_settings.auto_pair_selection ? 'checked' : ''}>
+                                    <input class="form-check-input" type="checkbox" id="autoPairSelection" ${safeBot.automation_settings.auto_pair_selection ? 'checked' : ''} 
+                                           onchange="toggleAutomation('${safeBot.basic_info.id}', 'auto_pair_selection', this.checked)">
                                     <label class="form-check-label" for="autoPairSelection">
                                         Автоматический выбор пар
                                     </label>
                                 </div>
                                 <div class="form-check form-switch mb-3">
-                                    <input class="form-check-input" type="checkbox" id="autoRiskAdjustment" ${safeBot.automation_settings.auto_risk_adjustment ? 'checked' : ''}>
+                                    <input class="form-check-input" type="checkbox" id="autoRiskAdjustment" ${safeBot.automation_settings.auto_risk_adjustment ? 'checked' : ''} 
+                                           onchange="toggleAutomation('${safeBot.basic_info.id}', 'auto_risk_adjustment', this.checked)">
                                     <label class="form-check-label" for="autoRiskAdjustment">
                                         Автоматическая настройка риска
                                     </label>
@@ -1092,6 +1137,132 @@ function renderBotDetails(bot, charts, metrics, logs) {
             </div>
         </div>
     `;
+    
+    // ВСТАВЛЯЕМ HTML С ДИАГНОСТИКОЙ
+    console.log('📝 Вставляем HTML в контейнер...');
+    console.log('📏 Размер HTML:', newHTML.length, 'символов');
+    
+    content.innerHTML = newHTML;
+    
+    console.log('✅ HTML ВСТАВЛЕН!');
+    console.log('🔍 HTML контейнера ПОСЛЕ вставки (первые 200 символов):', content.innerHTML.substring(0, 200));
+    console.log('🔍 Есть ли вкладки в DOM:', !!document.getElementById('botDetailsTabs'));
+}
+
+// Функция для закрытия модального окна
+function closeBotDetailsModal() {
+    const modalElement = document.getElementById('botDetailsModal');
+    const backdrop = document.getElementById('modal-backdrop-force');
+    
+    if (modalElement) {
+        modalElement.style.display = 'none';
+        modalElement.classList.remove('show');
+        modalElement.classList.remove('d-block');
+        modalElement.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
+    }
+    
+    if (backdrop) {
+        backdrop.remove();
+    }
+    
+    console.log('✅ Модальное окно закрыто');
+}
+
+// Обработчик клавиши Escape для закрытия модального окна
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const modalElement = document.getElementById('botDetailsModal');
+        if (modalElement && modalElement.style.display === 'block') {
+            closeBotDetailsModal();
+        }
+    }
+});
+
+// Функция для загрузки реальной производительности
+function loadRealPerformance(botId) {
+    console.log('📊 Загрузка реальной производительности для бота:', botId);
+    
+    fetch(`/api/bots/${botId}/performance`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const performance = data.performance;
+            console.log('✅ Реальная производительность:', performance);
+            
+            // Обновляем отображение в модальном окне
+            updatePerformanceDisplay(performance, data.real_data);
+            
+            // Показываем уведомление
+            showAlert('success', `Производительность обновлена ${data.real_data ? '(реальные данные)' : '(тестовые данные)'}`);
+        } else {
+            console.error('❌ Ошибка загрузки производительности:', data.error);
+            showAlert('danger', 'Ошибка загрузки производительности');
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка API производительности:', error);
+        showAlert('danger', 'Ошибка соединения при загрузке производительности');
+    });
+}
+
+// Функция для обновления отображения производительности
+function updatePerformanceDisplay(performance, isRealData) {
+    // Обновляем карточки статистики
+    const totalTradesElement = document.querySelector('#performance .text-primary');
+    const winRateElement = document.querySelector('#performance .text-success');
+    
+    if (totalTradesElement) totalTradesElement.textContent = performance.total_trades;
+    if (winRateElement) winRateElement.textContent = performance.win_rate + '%';
+    
+    // Добавляем индикатор реальных данных
+    const performanceTab = document.getElementById('performance-tab');
+    if (performanceTab && isRealData) {
+        performanceTab.innerHTML = '<i class="fas fa-chart-line"></i> Производительность <span class="badge bg-success ms-1">LIVE</span>';
+    }
+}
+
+// Функция для обновления живого графика
+function updateLiveChart(botId) {
+    console.log('📈 Обновление живого графика для бота:', botId);
+    
+    // Здесь должна быть интеграция с Chart.js
+    showAlert('info', 'Функция живых графиков будет реализована в следующем обновлении');
+}
+
+// Функция для управления торговыми парами
+function manageTradingPairs(botId) {
+    console.log('🔧 Управление парами для бота:', botId);
+    
+    // Здесь должно открываться окно выбора пар
+    // Пока показываем alert
+    alert(`Управление торговыми парами для бота ${botId}\n\nЭта функция будет реализована в следующем обновлении.`);
+}
+
+// Функция для переключения автоматизации
+function toggleAutomation(botId, setting, enabled) {
+    console.log(`🤖 Переключение ${setting} для бота ${botId}:`, enabled);
+    
+    // Здесь должна быть отправка на сервер
+    fetch(`/api/bots/${botId}/automation`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            setting: setting,
+            enabled: enabled
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log(`✅ ${setting} ${enabled ? 'включено' : 'выключено'}`);
+        } else {
+            console.error(`❌ Ошибка переключения ${setting}:`, data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка API автоматизации:', error);
+    });
 }
 
 // Функция для обновления деталей бота
@@ -1271,7 +1442,8 @@ function loadBotDetails(botId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                renderBotDetails(data.bot_details);
+                // Используем новую функцию с правильными параметрами
+                renderBotDetails(data.bot || data.bot_details, data.charts, data.system_metrics, data.logs);
                 // Загружаем рекомендованные пары
                 loadRecommendedPairs();
             } else {

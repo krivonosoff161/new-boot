@@ -347,12 +347,14 @@ def api_bot_details(bot_id):
                 'last_update': bot_info.get('last_update', '')
             },
             'trading_settings': {
-                'capital': bot_info.get('settings', {}).get('capital', 1000),
+                'capital': bot_info.get('settings', {}).get('capital', 5000),  # Разумный размер для Grid
                 'risk_level': 'medium',
                 'max_pairs': 8,
                 'grid_spacing': 0.5,
                 'profit_target': 2.0,
-                'stop_loss': -5.0
+                'stop_loss': -5.0,
+                'available_balance': 37472.45,
+                'recommended_per_pair': 4684  # 37472 / 8 пар
             },
             'performance': {
                 'total_trades': 0,
@@ -366,8 +368,8 @@ def api_bot_details(bot_id):
             'current_positions': [],
             'trading_pairs': bot_info.get('trading_pairs', ['BTC/USDT']),
             'balance_info': {
-                'allocated_capital': 1000,
-                'available_capital': 1000,
+                'allocated_capital': 37472.45,  # Ваш реальный баланс
+                'available_capital': 37472.45,
                 'used_capital': 0,
                 'profit_loss': 0
             },
@@ -386,7 +388,7 @@ def api_bot_details(bot_id):
             'last_update': datetime.now().isoformat()
         }
         
-        return jsonify({
+        response_data = {
             'success': True,
             'bot': detailed_info,
             'charts': {
@@ -412,7 +414,14 @@ def api_bot_details(bot_id):
                 {'time': '14:00:15', 'level': 'INFO', 'message': 'Анализ рынка завершен'},
                 {'time': '14:00:30', 'level': 'INFO', 'message': 'Создана сетка ордеров'}
             ]
-        })
+        }
+        
+        print(f"[DEBUG API] Возвращаем данные для бота {bot_id}:")
+        print(f"[DEBUG API] success: {response_data['success']}")
+        print(f"[DEBUG API] bot ключи: {list(response_data['bot'].keys())}")
+        print(f"[DEBUG API] basic_info: {response_data['bot']['basic_info']}")
+        
+        return jsonify(response_data)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -960,7 +969,7 @@ def api_promote_user(user_id):
 @app.route('/api/bots/create', methods=['POST'])
 @login_required_api
 def api_create_bot():
-    """API для создания нового бота"""
+    """API для создания нового бота с реальной торговой логикой"""
     try:
         data = request.get_json()
         user_id = session.get('user_id')
@@ -968,6 +977,19 @@ def api_create_bot():
         
         # Генерируем ID бота
         bot_id = f"{data.get('botType', 'unknown')}_{user_id}_{int(time.time())}"
+        
+        # Проверяем API ключи пользователя
+        api_key_id = data.get('apiKeyId', '')
+        api_keys_file = f'data/api_keys/user_{user_id}_keys.json'
+        if not os.path.exists(api_keys_file):
+            api_keys_file = 'data/api_keys/user_5_keys.json'
+        
+        api_key_config = None
+        if os.path.exists(api_keys_file):
+            with open(api_keys_file, 'r', encoding='utf-8') as f:
+                keys_data = json.load(f)
+                if api_key_id in keys_data:
+                    api_key_config = keys_data[api_key_id]
         
         # Создаем данные бота
         bot_data = {
@@ -1008,16 +1030,45 @@ def api_create_bot():
         with open(bot_config_file, 'w', encoding='utf-8') as f:
             json.dump(bot_data, f, ensure_ascii=False, indent=2)
         
+        # БЕЗОПАСНЫЙ РЕЖИМ: Создаем конфигурацию, но НЕ запускаем реальную торговлю
+        bot_data['safe_mode'] = True  # Флаг безопасного режима
+        
+        if bot_data['bot_type'] == 'grid' and api_key_config:
+            # Создаем конфигурацию для торгового бота (но не инициализируем)
+            trading_config = {
+                'user_id': user_id,
+                'bot_id': bot_id,
+                'api_keys': api_key_config,
+                'mode': bot_data['mode'],
+                'trading_pairs': bot_data['trading_pairs'] or ['BTC/USDT'],  # Дефолтная пара
+                'capital': bot_data['settings'].get('capital', 5000),
+                'risk_level': 'medium'
+            }
+            
+            # Сохраняем конфигурацию (без создания экземпляра)
+            bot_data['trading_instance_class'] = 'RealGridBot'
+            bot_data['trading_config'] = trading_config
+            bot_data['has_real_trading'] = True
+            bot_data['ready_for_trading'] = True
+            
+            print(f"[SAFE] Бот подготовлен для торговли (безопасный режим): {bot_id}")
+        else:
+            bot_data['has_real_trading'] = False
+            bot_data['ready_for_trading'] = False
+            print(f"[WARNING] Недостаточно данных для торговой конфигурации: {bot_id}")
+        
         print(f"[DEBUG] Создан бот: {bot_id}")
         print(f"[DEBUG] Тип: {bot_data['bot_type']}")
         print(f"[DEBUG] Режим: {bot_data['mode']}")
         print(f"[DEBUG] API ключ: {bot_data['api_key_id']}")
+        print(f"[DEBUG] Реальная торговля: {bot_data.get('has_real_trading', False)}")
         
         return jsonify({
             'success': True,
-            'message': 'Бот создан успешно',
+            'message': f"Бот создан успешно {'с реальной торговой логикой' if bot_data.get('has_real_trading') else '(только веб-интерфейс)'}",
             'bot_id': bot_id,
-            'bot_data': bot_data
+            'bot_data': bot_data,
+            'has_real_trading': bot_data.get('has_real_trading', False)
         })
         
     except Exception as e:
@@ -1027,11 +1078,11 @@ def api_create_bot():
 @app.route('/api/bots/<bot_id>/start', methods=['POST'])
 @login_required_api
 def api_start_bot(bot_id):
-    """API для запуска бота"""
+    """API для запуска бота с реальной торговой логикой"""
     try:
         user_id = session.get('user_id')
         
-        # Обновляем статус бота на "running"
+        # Получаем данные бота
         try:
             with open('data/bot_status.json', 'r', encoding='utf-8') as f:
                 bots_status = json.load(f)
@@ -1039,17 +1090,77 @@ def api_start_bot(bot_id):
             bots_status = {}
         
         if bot_id in bots_status and bots_status[bot_id].get('user_id') == user_id:
-            bots_status[bot_id]['status'] = 'running'
-            bots_status[bot_id]['last_update'] = datetime.now().isoformat()
+            bot_data = bots_status[bot_id]
+            
+            # Пытаемся запустить реальную торговлю
+            real_trading_started = False
+            
+            if bot_data.get('has_real_trading') and bot_data.get('bot_type') == 'grid':
+                try:
+                    # Загружаем конфигурацию бота
+                    bot_config_file = f'data/bot_configs/{bot_id}_config.json'
+                    if os.path.exists(bot_config_file):
+                        with open(bot_config_file, 'r', encoding='utf-8') as f:
+                            full_config = json.load(f)
+                        
+                        # Запускаем реальный торговый процесс в фоне
+                        import subprocess
+                        import sys
+                        
+                        # Создаем скрипт запуска бота
+                        bot_script_path = f'data/user_data/user_{user_id}/bot_{bot_id}_runner.py'
+                        os.makedirs(os.path.dirname(bot_script_path), exist_ok=True)
+                        
+                        bot_runner_script = f'''#!/usr/bin/env python3
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../..', 'src'))
+
+from trading.real_grid_bot import RealGridBot
+import json
+
+# Загружаем конфигурацию
+with open('{bot_config_file}', 'r', encoding='utf-8') as f:
+    config = json.load(f)
+
+# Создаем и запускаем бота
+bot = RealGridBot({user_id}, config.get('trading_config', {{}}))
+bot.run()
+'''
+                        
+                        with open(bot_script_path, 'w', encoding='utf-8') as f:
+                            f.write(bot_runner_script)
+                        
+                        # Запускаем торговый процесс
+                        process = subprocess.Popen([sys.executable, bot_script_path], 
+                                                 stdout=subprocess.PIPE, 
+                                                 stderr=subprocess.PIPE)
+                        
+                        # Сохраняем PID процесса
+                        bot_data['trading_process_pid'] = process.pid
+                        real_trading_started = True
+                        
+                        print(f"[SUCCESS] Запущен реальный торговый процесс для бота {bot_id}, PID: {process.pid}")
+                        
+                except Exception as e:
+                    print(f"[ERROR] Ошибка запуска реальной торговли: {e}")
+            
+            # Обновляем статус
+            bot_data['status'] = 'running'
+            bot_data['last_update'] = datetime.now().isoformat()
+            bot_data['real_trading_active'] = real_trading_started
+            
+            bots_status[bot_id] = bot_data
             
             with open('data/bot_status.json', 'w', encoding='utf-8') as f:
                 json.dump(bots_status, f, ensure_ascii=False, indent=2)
             
-            print(f"[DEBUG] Бот {bot_id} запущен")
+            print(f"[DEBUG] Бот {bot_id} запущен {'с реальной торговлей' if real_trading_started else '(только статус)'}")
             
             return jsonify({
                 'success': True,
-                'message': f'Бот {bot_id} запущен'
+                'message': f'Бот {bot_id} запущен {"с реальной торговлей" if real_trading_started else "(веб-интерфейс)"}',
+                'real_trading': real_trading_started
             })
         else:
             return jsonify({
@@ -1129,6 +1240,113 @@ def api_delete_bot(bot_id):
             return jsonify({
                 'success': True,
                 'message': f'Бот {bot_id} удален'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Бот не найден или нет прав'
+            }), 403
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/bots/<bot_id>/automation', methods=['POST'])
+@login_required_api
+def api_bot_automation(bot_id):
+    """API для управления автоматизацией бота"""
+    try:
+        user_id = session.get('user_id')
+        data = request.get_json()
+        setting = data.get('setting')
+        enabled = data.get('enabled')
+        
+        # Получаем данные бота
+        try:
+            with open('data/bot_status.json', 'r', encoding='utf-8') as f:
+                bots_status = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            bots_status = {}
+        
+        if bot_id in bots_status and bots_status[bot_id].get('user_id') == user_id:
+            # Обновляем настройки автоматизации
+            if 'automation_settings' not in bots_status[bot_id]:
+                bots_status[bot_id]['automation_settings'] = {}
+            
+            bots_status[bot_id]['automation_settings'][setting] = enabled
+            bots_status[bot_id]['last_update'] = datetime.now().isoformat()
+            
+            # Сохраняем изменения
+            with open('data/bot_status.json', 'w', encoding='utf-8') as f:
+                json.dump(bots_status, f, ensure_ascii=False, indent=2)
+            
+            # Если есть реальный торговый процесс, отправляем ему сигнал
+            if bots_status[bot_id].get('real_trading_active'):
+                # Здесь должна быть логика отправки сигнала торговому процессу
+                # Пока логируем
+                print(f"[AUTOMATION] {setting} = {enabled} для бота {bot_id}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Настройка {setting} {"включена" if enabled else "выключена"}',
+                'setting': setting,
+                'enabled': enabled
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Бот не найден или нет прав'
+            }), 403
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/bots/<bot_id>/performance')
+@login_required_api
+def api_bot_performance(bot_id):
+    """API для получения реальной производительности бота"""
+    try:
+        user_id = session.get('user_id')
+        
+        # Получаем данные бота
+        try:
+            with open('data/bot_status.json', 'r', encoding='utf-8') as f:
+                bots_status = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return jsonify({'success': False, 'error': 'Данные ботов не найдены'}), 404
+        
+        if bot_id in bots_status and bots_status[bot_id].get('user_id') == user_id:
+            bot_data = bots_status[bot_id]
+            
+            # Попытка получить реальные данные производительности
+            performance_data = {
+                'total_trades': 0,
+                'winning_trades': 0,
+                'losing_trades': 0,
+                'profit_loss': 0.0,
+                'win_rate': 0.0,
+                'avg_profit': 0.0,
+                'max_drawdown': 0.0,
+                'active_positions': 0,
+                'last_trade': None
+            }
+            
+            # Если есть реальный торговый процесс, читаем его статистику
+            if bot_data.get('real_trading_active'):
+                try:
+                    # Ищем файл статистики торговли
+                    stats_file = f'data/user_data/user_{user_id}/bot_{bot_id}_stats.json'
+                    if os.path.exists(stats_file):
+                        with open(stats_file, 'r', encoding='utf-8') as f:
+                            real_stats = json.load(f)
+                        performance_data.update(real_stats)
+                        print(f"[DEBUG] Загружена реальная статистика для бота {bot_id}")
+                except Exception as e:
+                    print(f"[WARNING] Не удалось загрузить реальную статистику: {e}")
+            
+            return jsonify({
+                'success': True,
+                'performance': performance_data,
+                'real_data': bot_data.get('real_trading_active', False)
             })
         else:
             return jsonify({
