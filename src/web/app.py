@@ -103,10 +103,11 @@ class RealBalanceManager:
             # Получаем баланс
             balance = self.ex.fetch_balance()
             
-            # Вычисляем общий баланс в USDT
+            # Вычисляем общий баланс в USDT и собираем детали по валютам
             total_balance = 0
             free_balance = 0
             used_balance = 0
+            currencies = {}
             
             # Обрабатываем баланс правильно
             if isinstance(balance, dict):
@@ -116,26 +117,39 @@ class RealBalanceManager:
                     
                     # Проверяем, что amounts - это словарь
                     if isinstance(amounts, dict) and 'total' in amounts:
-                        if currency == 'USDT':
-                            total_balance += amounts.get('total', 0)
-                            free_balance += amounts.get('free', 0)
-                            used_balance += amounts.get('used', 0)
-                        elif amounts.get('total', 0) > 0:
-                            # Конвертируем в USDT (упрощенно)
-                            try:
-                                ticker = self.ex.fetch_ticker(f'{currency}/USDT')
-                                usdt_value = amounts.get('total', 0) * ticker.get('last', 0)
-                                total_balance += usdt_value
-                                free_balance += amounts.get('free', 0) * ticker.get('last', 0)
-                                used_balance += amounts.get('used', 0) * ticker.get('last', 0)
-                            except:
-                                pass  # Пропускаем валюты без пары USDT
+                        currency_total = amounts.get('total', 0)
+                        currency_free = amounts.get('free', 0)
+                        currency_used = amounts.get('used', 0)
+                        
+                        if currency_total > 0:
+                            # Сохраняем детали по валюте
+                            currencies[currency] = {
+                                'total': currency_total,
+                                'free': currency_free,
+                                'used': currency_used
+                            }
+                            
+                            if currency == 'USDT':
+                                total_balance += currency_total
+                                free_balance += currency_free
+                                used_balance += currency_used
+                            else:
+                                # Конвертируем в USDT (упрощенно)
+                                try:
+                                    ticker = self.ex.fetch_ticker(f'{currency}/USDT')
+                                    usdt_value = currency_total * ticker.get('last', 0)
+                                    total_balance += usdt_value
+                                    free_balance += currency_free * ticker.get('last', 0)
+                                    used_balance += currency_used * ticker.get('last', 0)
+                                except:
+                                    pass  # Пропускаем валюты без пары USDT
             
             mode_text = "ДЕМО" if self.sandbox_mode else "РЕАЛЬНЫЙ"
             return {
                 'total_balance': total_balance,
                 'free_balance': free_balance,
                 'used_balance': used_balance,
+                'currencies': currencies,  # Добавляем детали по валютам
                 'profile': mode_text,
                 'allocation': {},
                 'source': f'okx_api_{mode_text.lower()}',
@@ -678,18 +692,56 @@ def api_create_bot():
         
         bot_type = data.get('botType', 'grid')
         bot_name = data.get('botName', f'{bot_type}_bot')
+        selected_key_id = data.get('selectedKeyId')  # Получаем выбранный ключ от пользователя
         
-        # Получаем расшифрованные ключи
-        decrypted_key = get_user_decrypted_keys(user_id)
-        if not decrypted_key:
+        # Получаем все ключи пользователя
+        all_keys = get_all_user_keys(user_id)
+        if not all_keys:
             return jsonify({'success': False, 'error': 'API ключи не найдены'})
+        
+        # Проверяем, есть ли ключи
+        logger.info(f"🔍 Создание бота для пользователя {user_id}")
+        logger.info(f"📊 Найдено ключей: {len(all_keys)}")
+        logger.info(f"🎯 Выбранный ключ: {selected_key_id}")
+        
+        for i, key_data in enumerate(all_keys):
+            logger.info(f"Ключ {i+1}: {key_data.get('key_id')} - статус: {key_data.get('validation_status', 'unknown')} - режим: {key_data.get('mode', 'unknown')}")
+        
+        # Выбираем ключ для бота
+        selected_key = None
+        
+        if selected_key_id:
+            # Ищем выбранный пользователем ключ
+            for key_data in all_keys:
+                if key_data.get('key_id') == selected_key_id:
+                    selected_key = key_data
+                    logger.info(f"✅ Используем выбранный ключ: {key_data.get('key_id')}")
+                    break
+        
+        if not selected_key:
+            # Если ключ не выбран или не найден, выбираем автоматически
+            # Сначала ищем валидные ключи
+            for key_data in all_keys:
+                if key_data.get('validation_status') == 'valid':
+                    selected_key = key_data
+                    logger.info(f"✅ Автоматически выбран валидный ключ: {key_data.get('key_id')}")
+                    break
+            
+            # Если валидных нет, берем любой доступный
+            if not selected_key and all_keys:
+                selected_key = all_keys[0]
+                logger.warning(f"⚠️ Валидных ключей не найдено, используем первый доступный: {selected_key.get('key_id')}")
+        
+        if not selected_key:
+            return jsonify({'success': False, 'error': 'Нет доступных API ключей для создания бота'})
         
         # Создаем конфигурацию бота
         bot_config = {
             'user_id': user_id,
             'bot_type': bot_type,
             'bot_name': bot_name,
-            'api_keys': decrypted_key,  # Используем расшифрованные ключи
+            'api_keys': selected_key,  # Используем выбранный ключ
+            'all_keys': all_keys,  # Сохраняем все ключи для справки
             'status': 'created',
             'created_at': datetime.now().isoformat()
         }
@@ -704,6 +756,38 @@ def api_create_bot():
         
     except Exception as e:
         logger.error(f"Ошибка создания бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/available-keys')
+@login_required
+def api_available_keys():
+    """API для получения доступных ключей для создания бота"""
+    try:
+        user_id = session['user_id']
+        
+        # Получаем все ключи пользователя
+        all_keys = get_all_user_keys(user_id)
+        logger.info(f"🔑 Запрос доступных ключей для пользователя {user_id}: найдено {len(all_keys)}")
+        
+        if not all_keys:
+            return jsonify({'success': False, 'error': 'API ключи не найдены'})
+        
+        # Форматируем ключи для фронтенда
+        available_keys = []
+        for key_data in all_keys:
+            available_keys.append({
+                'key_id': key_data.get('key_id', 'unknown'),
+                'exchange': key_data.get('exchange', 'OKX'),
+                'mode': key_data.get('mode', 'sandbox'),
+                'validation_status': key_data.get('validation_status', 'unknown'),
+                'display_name': f"{key_data.get('exchange', 'OKX')} ({key_data.get('mode', 'sandbox')}) - {key_data.get('key_id', 'unknown')}"
+            })
+        
+        logger.info(f"📋 Возвращаем {len(available_keys)} доступных ключей")
+        return jsonify({'success': True, 'keys': available_keys})
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения доступных ключей: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/bots/status')
@@ -746,12 +830,24 @@ def get_user_decrypted_keys(user_id):
         try:
             user_keys_list = api_keys_manager.get_user_keys(user_id)
             if user_keys_list:
+                # Ищем валидный ключ
+                for key_data in user_keys_list:
+                    if key_data.get('validation_status') == 'valid':
+                        key_id = key_data['key_id']
+                        decrypted_key = api_keys_manager.get_decrypted_key(user_id, key_id)
+                        if decrypted_key:
+                            logger.info(f"Найден валидный ключ: {key_id}")
+                            return decrypted_key
+                
+                # Если валидных ключей нет, берем первый доступный
                 first_key = user_keys_list[0]
                 key_id = first_key['key_id']
                 decrypted_key = api_keys_manager.get_decrypted_key(user_id, key_id)
                 if decrypted_key:
+                    logger.warning(f"Используем невалидный ключ: {key_id}")
                     return decrypted_key
-        except:
+        except Exception as e:
+            logger.error(f"Ошибка получения ключей из APIKeysManager: {e}")
             pass
         
         # Если не получилось, берем из базы данных
@@ -778,39 +874,189 @@ def get_user_decrypted_keys(user_id):
         logger.error(f"Ошибка получения расшифрованных ключей: {e}")
         return None
 
+def get_all_user_keys(user_id):
+    """Получение всех API ключей пользователя"""
+    try:
+        # Получаем все ключи из APIKeysManager
+        try:
+            user_keys_list = api_keys_manager.get_user_keys(user_id)
+            if user_keys_list:
+                all_keys = []
+                for key_data in user_keys_list:
+                    # Добавляем все ключи, не только валидные
+                    key_id = key_data['key_id']
+                    decrypted_key = api_keys_manager.get_decrypted_key(user_id, key_id)
+                    if decrypted_key:
+                        decrypted_key['key_id'] = key_id
+                        decrypted_key['exchange'] = key_data.get('exchange', 'okx')
+                        decrypted_key['mode'] = key_data.get('mode', 'sandbox')
+                        decrypted_key['validation_status'] = key_data.get('validation_status', 'unknown')
+                        all_keys.append(decrypted_key)
+                        logger.info(f"Добавлен ключ: {key_id} ({key_data.get('mode', 'sandbox')}) - {key_data.get('validation_status', 'unknown')}")
+                return all_keys
+        except Exception as e:
+            logger.error(f"Ошибка получения ключей из APIKeysManager: {e}")
+            pass
+        
+        # Если не получилось, берем из базы данных
+        conn = sqlite3.connect('secure_users.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT encrypted_api_key, encrypted_secret_key, encrypted_passphrase, key_mode
+            FROM secure_users WHERE user_id = ?
+        ''', (user_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            api_key, secret_key, passphrase, key_mode = result
+            return [{
+                'api_key': api_key,
+                'secret': secret_key,
+                'passphrase': passphrase or '',
+                'mode': key_mode or 'sandbox',
+                'exchange': 'okx',
+                'key_id': f'db_{user_id}'
+            }]
+        
+        return []
+    except Exception as e:
+        logger.error(f"Ошибка получения всех ключей: {e}")
+        return []
+
 @app.route('/api/balance')
 @login_required
 def api_balance():
     """API для получения баланса"""
     try:
         user_id = session['user_id']
+        logger.info(f"🔍 Запрос баланса от пользователя {user_id}")
         
-        # Получаем расшифрованные ключи
-        decrypted_key = get_user_decrypted_keys(user_id)
-        if not decrypted_key:
+        # Получаем все ключи пользователя
+        all_keys = get_all_user_keys(user_id)
+        logger.info(f"Найдено ключей: {len(all_keys)}")
+        
+        if not all_keys:
+            logger.warning("❌ API ключи не найдены")
             return jsonify({'success': False, 'error': 'API ключи не найдены'})
         
-        # Создаем менеджер баланса
-        balance_manager = RealBalanceManager(
-            decrypted_key['api_key'], 
-            decrypted_key['secret'], 
-            decrypted_key.get('passphrase', '')
-        )
-        balance_data = balance_manager.get_real_balance()
+        # Получаем баланс для каждого ключа
+        exchanges = []
+        total_balance = 0
+        all_currencies = {}
         
-        return jsonify({'success': True, 'balance': balance_data})
+        for key_data in all_keys:
+            try:
+                balance_manager = RealBalanceManager(
+                    key_data['api_key'], 
+                    key_data['secret'], 
+                    key_data.get('passphrase', '')
+                )
+                balance_data = balance_manager.get_real_balance()
+                
+                key_balance = balance_data.get('total_balance', 0)
+                total_balance += key_balance
+                
+                # Получаем детали по валютам
+                currencies = balance_data.get('currencies', {})
+                if not currencies and key_balance > 0:
+                    # Если детали по валютам не получены, создаем базовую структуру
+                    currencies = {'USDT': key_balance}
+                
+                exchange_data = {
+                    'name': key_data.get('exchange', 'OKX'),
+                    'mode': key_data.get('mode', 'sandbox'),
+                    'balance': key_balance,
+                    'key_id': key_data.get('key_id', 'unknown'),
+                    'last_updated': balance_data.get('last_updated', datetime.now().isoformat()),
+                    'currencies': currencies
+                }
+                
+                exchanges.append(exchange_data)
+                
+                # Суммируем валюты по всем ключам
+                for currency, amount in currencies.items():
+                    if currency not in all_currencies:
+                        all_currencies[currency] = 0
+                    all_currencies[currency] += amount
+                
+                logger.info(f"Ключ {key_data.get('key_id')} ({key_data.get('mode')}): ${key_balance:.2f}, валюты: {list(currencies.keys())}")
+                
+            except Exception as e:
+                logger.error(f"Ошибка получения баланса для ключа {key_data.get('key_id')}: {e}")
+                continue
+        
+        # Форматируем данные для дашборда
+        formatted_balance = {
+            'connected': len(exchanges) > 0,
+            'total_usdt': total_balance,
+            'exchanges': exchanges,
+            'currencies': all_currencies,  # Добавляем информацию о валютах
+            'source': f'okx_api_{len(exchanges)}_keys',
+            'last_updated': datetime.now().isoformat()
+        }
+        
+        logger.info(f"✅ Общий баланс: ${total_balance:.2f} из {len(exchanges)} ключей")
+        return jsonify({'success': True, 'balance': formatted_balance})
         
     except Exception as e:
-        logger.error(f"Ошибка получения баланса: {e}")
+        logger.error(f"❌ Ошибка получения баланса: {e}")
+        logger.error(f"Тип ошибки: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/api-keys')
+@app.route('/api/api-keys', methods=['GET', 'POST'])
 @login_required
 def api_api_keys():
-    """API для получения API ключей пользователя"""
+    """API для получения и добавления API ключей пользователя"""
     try:
         user_id = session['user_id']
         
+        # Обработка POST запроса для добавления ключей
+        if request.method == 'POST':
+            data = request.get_json()
+            logger.info(f"Получены данные для добавления ключей: {data}")
+            
+            exchange = data.get('exchange', 'okx')
+            api_key = data.get('api_key', '').strip()
+            secret_key = data.get('secret', '').strip()  # Исправлено: secret вместо secret_key
+            passphrase = data.get('passphrase', '').strip()
+            mode = data.get('mode', 'sandbox')
+            
+            logger.info(f"Обработанные данные: exchange={exchange}, api_key={api_key[:8]}..., secret_key={secret_key[:8]}..., passphrase={passphrase[:8] if passphrase else 'None'}..., mode={mode}")
+            
+            if not all([api_key, secret_key]):
+                logger.error(f"Отсутствуют обязательные поля: api_key={bool(api_key)}, secret_key={bool(secret_key)}")
+                return jsonify({'success': False, 'error': 'API ключ и секрет обязательны'})
+            
+            try:
+                # Добавляем ключ через APIKeysManager
+                success = api_keys_manager.add_api_key(
+                    user_id=user_id,
+                    exchange=exchange,
+                    api_key=api_key,
+                    secret=secret_key,
+                    passphrase=passphrase,
+                    mode=mode
+                )
+                
+                if success:
+                    return jsonify({
+                        'success': True, 
+                        'message': 'API ключ успешно добавлен'
+                    })
+                else:
+                    return jsonify({
+                        'success': False, 
+                        'error': 'Ошибка добавления ключа'
+                    })
+                
+            except Exception as e:
+                logger.error(f"Ошибка добавления ключа: {e}")
+                return jsonify({'success': False, 'error': f'Ошибка добавления ключа: {str(e)}'})
+        
+        # Обработка GET запроса для получения ключей
         # Сначала пытаемся получить из APIKeysManager
         try:
             user_keys = api_keys_manager.get_user_keys(user_id)
@@ -850,30 +1096,22 @@ def api_validate_key(key_id):
     try:
         user_id = session['user_id']
         
-        # Получаем расшифрованные ключи
-        decrypted_key = get_user_decrypted_keys(user_id)
-        if not decrypted_key:
-            return jsonify({'success': False, 'error': 'API ключи не найдены'})
+        # Используем APIKeysManager для валидации
+        validation_result = api_keys_manager.validate_api_key(user_id, key_id)
         
-        # Простая валидация - проверяем, что ключи не пустые
-        if not decrypted_key.get('api_key') or not decrypted_key.get('secret'):
-            return jsonify({'success': False, 'error': 'Неполные API ключи'})
-        
-        # Обновляем статус в базе данных
-        try:
-            conn = sqlite3.connect('secure_users.db')
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE secure_users 
-                SET last_login = ? 
-                WHERE user_id = ?
-            ''', (datetime.now().isoformat(), user_id))
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            logger.error(f"Ошибка обновления времени использования ключей: {e}")
-        
-        return jsonify({'success': True, 'message': 'API ключи успешно валидированы!'})
+        if validation_result.get('valid'):
+            return jsonify({
+                'success': True, 
+                'message': validation_result.get('message', '✅ API ключи валидны'),
+                'balance_count': validation_result.get('balance_count', 0),
+                'exchange': validation_result.get('exchange', 'Unknown')
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'error': validation_result.get('error', 'Ошибка валидации'),
+                'technical_error': validation_result.get('technical_error')
+            })
         
     except Exception as e:
         logger.error(f"Ошибка валидации API ключей: {e}")
@@ -919,48 +1157,51 @@ def api_balance_detailed():
     try:
         user_id = session['user_id']
         
-        # Получаем расшифрованные ключи
-        decrypted_key = get_user_decrypted_keys(user_id)
-        if not decrypted_key:
+        # Получаем все ключи пользователя
+        all_keys = get_all_user_keys(user_id)
+        logger.info(f"Найдено ключей для детального баланса: {len(all_keys)}")
+        
+        if not all_keys:
             return jsonify({'success': False, 'error': 'API ключи не найдены'})
         
-        # Создаем менеджер баланса
-        balance_manager = RealBalanceManager(
-            decrypted_key['api_key'], 
-            decrypted_key['secret'], 
-            decrypted_key.get('passphrase', '')
-        )
+        # Получаем баланс для каждого ключа
+        total_balance = {}
+        free_balance = {}
+        used_balance = {}
+        currencies = []
         
-        # Получаем детальный баланс
-        try:
-            balance_data = balance_manager.get_real_balance()
-            
-            # Форматируем данные для детального отображения
-            detailed_balance = {
-                'total_balance': balance_data.get('total_balance', {}),
-                'free_balance': balance_data.get('free_balance', {}),
-                'used_balance': balance_data.get('used_balance', {}),
-                'currencies': list(balance_data.get('total_balance', {}).keys()),
-                'last_updated': datetime.now().isoformat(),
-                'exchange': 'OKX',
-                'mode': decrypted_key.get('mode', 'sandbox')
-            }
-            
-            return jsonify({'success': True, 'balance': detailed_balance})
-            
-        except Exception as e:
-            logger.error(f"Ошибка получения реального баланса: {e}")
-            # Возвращаем демо данные если не удалось получить реальные
-            demo_balance = {
-                'total_balance': {'USDT': 1000.0, 'BTC': 0.01},
-                'free_balance': {'USDT': 1000.0, 'BTC': 0.01},
-                'used_balance': {'USDT': 0.0, 'BTC': 0.0},
-                'currencies': ['USDT', 'BTC'],
-                'last_updated': datetime.now().isoformat(),
-                'exchange': 'OKX',
-                'mode': 'demo'
-            }
-            return jsonify({'success': True, 'balance': demo_balance})
+        for key_data in all_keys:
+            try:
+                balance_manager = RealBalanceManager(
+                    key_data['api_key'], 
+                    key_data['secret'], 
+                    key_data.get('passphrase', '')
+                )
+                balance_data = balance_manager.get_real_balance()
+                
+                mode = key_data.get('mode', 'sandbox')
+                currencies.append(mode)
+                total_balance[mode] = balance_data.get('total_balance', 0)
+                free_balance[mode] = balance_data.get('free_balance', 0)
+                used_balance[mode] = balance_data.get('used_balance', 0)
+                
+                logger.info(f"Детальный баланс для {mode}: ${balance_data.get('total_balance', 0):.2f}")
+                
+            except Exception as e:
+                logger.error(f"Ошибка получения детального баланса для ключа {key_data.get('key_id')}: {e}")
+                continue
+        
+        # Форматируем данные для детального отображения
+        detailed_balance = {
+            'total_balance': total_balance,
+            'free_balance': free_balance,
+            'used_balance': used_balance,
+            'currencies': currencies,
+            'last_updated': datetime.now().isoformat()
+        }
+        
+        logger.info(f"Возвращаем детальный баланс: {detailed_balance}")
+        return jsonify({'success': True, 'balance': detailed_balance})
         
     except Exception as e:
         logger.error(f"Ошибка получения детального баланса: {e}")
