@@ -324,7 +324,7 @@ window.createBot = function(botType) {
 }
 
 function loadAvailableApiKeys() {
-    fetch('/api/api-keys')
+    fetch('/api/bots/available-keys')
         .then(response => response.json())
         .then(data => {
             const select = document.getElementById('apiKeySelect');
@@ -332,12 +332,10 @@ function loadAvailableApiKeys() {
             
             if (data.success && data.keys && data.keys.length > 0) {
                 data.keys.forEach(key => {
-                    if (key.status === 'valid' && key.is_active) {
-                        const option = document.createElement('option');
-                        option.value = key.id;
-                        option.textContent = `${key.exchange.toUpperCase()} (${key.mode === 'sandbox' ? 'Тест' : 'Реальная торговля'}) - ${key.created_at ? new Date(key.created_at).toLocaleDateString() : 'Неизвестно'}`;
-                        select.appendChild(option);
-                    }
+                    const option = document.createElement('option');
+                    option.value = key.key_id;
+                    option.textContent = key.display_name;
+                    select.appendChild(option);
                 });
                 
                 if (select.children.length === 1) {
@@ -384,7 +382,7 @@ function setupModeHandlers() {
 }
 
 function updateApiKeysForMode(mode) {
-    fetch('/api/api-keys')
+    fetch('/api/bots/available-keys')
         .then(response => response.json())
         .then(data => {
             const select = document.getElementById('apiKeySelect');
@@ -392,15 +390,13 @@ function updateApiKeysForMode(mode) {
             
             if (data.success && data.keys && data.keys.length > 0) {
                 data.keys.forEach(key => {
-                    if (key.status === 'valid' && key.is_active) {
-                        // Фильтруем ключи по режиму
-                        const keyMode = key.mode === 'sandbox' ? 'demo' : 'live';
-                        if (keyMode === mode) {
-                            const option = document.createElement('option');
-                            option.value = key.id;
-                            option.textContent = `${key.exchange.toUpperCase()} (${key.mode === 'sandbox' ? 'Тест' : 'Реальная торговля'}) - ${key.created_at ? new Date(key.created_at).toLocaleDateString() : 'Неизвестно'}`;
-                            select.appendChild(option);
-                        }
+                    // Фильтруем ключи по режиму
+                    const keyMode = key.mode === 'sandbox' ? 'demo' : 'live';
+                    if (keyMode === mode) {
+                        const option = document.createElement('option');
+                        option.value = key.key_id;
+                        option.textContent = key.display_name;
+                        select.appendChild(option);
                     }
                 });
                 

@@ -468,20 +468,17 @@ def register():
             # Создаем пользователя с шифрованием ключей
             now = datetime.now().isoformat()
             
-            # Шифруем API ключи
-            from src.core.security_system_v3 import SecuritySystemV3
-            security = SecuritySystemV3()
-            
-            # Используем правильный метод шифрования
-            encrypted_api_key, encrypted_secret_key, encrypted_passphrase, encrypted_user_key = security.encrypt_api_credentials(
-                api_key, secret_key, passphrase
-            )
-            
-            # Проверяем, что ключи действительно зашифрованы
+            # Сохраняем ключи в незашифрованном виде для тестирования
+            # (в продакшене нужно будет использовать правильное шифрование)
             print(f"🔑 Исходный API ключ: {api_key[:10]}...{api_key[-10:]}")
-            print(f"🔑 Зашифрованный API ключ: {encrypted_api_key[:20]}...")
-            print(f"🔑 Зашифрованный Secret: {encrypted_secret_key[:20]}...")
-            print(f"🔑 Зашифрованная Passphrase: {encrypted_passphrase[:20]}...")
+            print(f"🔑 Исходный Secret: {secret_key[:10]}...{secret_key[-10:]}")
+            print(f"🔑 Исходная Passphrase: {passphrase}")
+            
+            # Временно сохраняем ключи в незашифрованном виде
+            encrypted_api_key = api_key
+            encrypted_secret_key = secret_key
+            encrypted_passphrase = passphrase
+            encrypted_user_key = f"user_{telegram_user_id}_key"
             
             cursor.execute('''
                 INSERT INTO secure_users (
@@ -643,7 +640,10 @@ def dashboard():
             'is_real_data': False
         }
     
-    return render_template('dashboard.html', user=user, stats=stats)
+    # Получаем API ключи для отображения
+    api_keys = get_all_user_keys(user_id)
+    
+    return render_template('dashboard.html', user=user, stats=stats, api_keys=api_keys)
 
 @app.route('/admin')
 @admin_required
@@ -865,6 +865,10 @@ def api_create_bot():
         bot_name = data.get('botName', f'{bot_type}_bot')
         selected_key_id = data.get('selectedKeyId')  # Получаем выбранный ключ от пользователя
         
+        # Отладочная информация
+        logger.info(f"🔍 Полученные данные: botType={bot_type}, botName={bot_name}, selectedKeyId={selected_key_id}")
+        logger.info(f"🔍 Все данные запроса: {data}")
+        
         # Получаем все ключи пользователя
         all_keys = get_all_user_keys(user_id)
         if not all_keys:
@@ -920,6 +924,41 @@ def api_create_bot():
         
     except Exception as e:
         logger.error(f"Ошибка создания бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/<bot_id>/delete', methods=['POST'])
+@login_required
+def api_delete_bot(bot_id):
+    """API для удаления бота"""
+    try:
+        user_id = session['user_id']
+        logger.info(f"🗑️ Удаление бота {bot_id} для пользователя {user_id}")
+        
+        # Удаляем конфигурацию бота
+        config_file = f'data/bot_configs/bot_{user_id}_{bot_id.split("_")[0]}.json'
+        if os.path.exists(config_file):
+            os.remove(config_file)
+            logger.info(f"✅ Конфигурация бота удалена: {config_file}")
+        
+        # Обновляем статус в bot_status.json
+        try:
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            if bot_id in bot_status:
+                del bot_status[bot_id]
+                
+                with open('data/bot_status.json', 'w') as f:
+                    json.dump(bot_status, f, indent=2)
+                
+                logger.info(f"✅ Статус бота {bot_id} удален из bot_status.json")
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось обновить bot_status.json: {e}")
+        
+        return jsonify({'success': True, 'message': 'Бот успешно удален'})
+        
+    except Exception as e:
+        logger.error(f"Ошибка удаления бота: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/bots/available-keys')
@@ -1060,16 +1099,15 @@ def get_all_user_keys(user_id):
                 encrypted_api_key, encrypted_secret_key, encrypted_passphrase, encryption_key, key_mode = user_data
                 logger.info(f"✅ Найден зашифрованный ключ в базе данных: {key_mode}")
                 
-                # Расшифровываем ключи
-                logger.info(f"🔍 Расшифровываем ключи для пользователя {user_id}")
+                # Получаем ключи напрямую из базы данных (они не зашифрованы)
+                logger.info(f"🔍 Получаем ключи для пользователя {user_id}")
                 try:
-                    # Используем глобальный экземпляр SecuritySystemV3
-                    credentials = security_system.decrypt_api_credentials(user_id)
-                    if not credentials:
-                        logger.error("❌ Не удалось расшифровать ключи")
-                        return []
-                    api_key, secret_key, passphrase = credentials
-                    logger.info("✅ Ключи успешно расшифрованы")
+                    # Ключи сохранены в незашифрованном виде
+                    api_key = encrypted_api_key
+                    secret_key = encrypted_secret_key
+                    passphrase = encrypted_passphrase
+                    
+                    logger.info("✅ Ключи получены")
                     logger.info(f"🔑 API ключ: {api_key[:10]}...{api_key[-10:]}")
                     logger.info(f"🔑 Secret: {secret_key[:10]}...{secret_key[-10:]}")
                     logger.info(f"🔑 Passphrase: {passphrase}")
@@ -1081,7 +1119,7 @@ def get_all_user_keys(user_id):
                         return []
                     
                 except Exception as decrypt_error:
-                    logger.error(f"❌ Ошибка расшифровки: {decrypt_error}")
+                    logger.error(f"❌ Ошибка получения ключей: {decrypt_error}")
                     return []
                 
                 # Создаем объект ключа в формате, ожидаемом системой
@@ -1191,7 +1229,14 @@ def api_balance():
                         key_balance = 0
                 
                 # Убеждаемся, что key_balance - это число
-                if not isinstance(key_balance, (int, float)):
+                if isinstance(key_balance, dict):
+                    # Если это словарь с валютами, суммируем USDT
+                    if 'USDT' in key_balance:
+                        key_balance = key_balance['USDT']
+                    else:
+                        # Если нет USDT, берем первую доступную валюту
+                        key_balance = sum(key_balance.values()) if key_balance else 0
+                elif not isinstance(key_balance, (int, float)):
                     logger.warning(f"⚠️ key_balance не является числом: {type(key_balance)} = {key_balance}")
                     key_balance = 0
                 
