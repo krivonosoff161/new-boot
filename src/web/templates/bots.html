@@ -449,7 +449,7 @@ function submitCreateBot() {
     const config = {
         name: botName || `Мой ${botType} бот`,
         description: botDescription,
-        created_by: '{{ user.username }}',
+        created_by: '{{ session.username }}',
         mode: botMode
     };
     

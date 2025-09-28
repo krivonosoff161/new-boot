@@ -21,6 +21,7 @@
                     </span>
                     <a class="nav-link" href="{{ url_for('dashboard') }}">Дашборд</a>
                     <a class="nav-link" href="{{ url_for('bots') }}">Боты</a>
+                    <a class="nav-link" href="{{ url_for('clean_dashboard') }}">Чистая система</a>
                     <a class="nav-link" href="{{ url_for('api_keys') }}">API Ключи</a>
                     {% if session.role in ['admin', 'super_admin'] %}
                         <a class="nav-link" href="{{ url_for('admin') }}">Админ панель</a>

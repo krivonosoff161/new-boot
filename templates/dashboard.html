@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд - Простая система управления ботами</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .balance-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .bot-card { transition: transform 0.2s; }
+        .bot-card:hover { transform: translateY(-5px); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                🚀 Простая система управления ботами
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">
+                    Привет, {{ username }}! ({{ role }})
+                </span>
+                <a class="nav-link" href="/bots">Боты</a>
+                <a class="nav-link" href="/logout">Выйти</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Заголовок -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="text-center text-primary">
+                    <i class="fas fa-tachometer-alt"></i> Дашборд
+                </h1>
+            </div>
+        </div>
+
+        <!-- Баланс -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card balance-card text-white">
+                    <div class="card-body">
+                        <h5><i class="fas fa-wallet"></i> Баланс</h5>
+                        <h2 id="balanceAmount">${{ balance.total_usdt if balance.success else '0.00' }}</h2>
+                        <p id="balanceDetails" class="mb-0">
+                            {% if balance.success %}
+                                Подключено бирж: {{ balance.connected_exchanges }}
+                            {% else %}
+                                {{ balance.error }}
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5><i class="fas fa-robot"></i> Статистика ботов</h5>
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <h4 class="text-primary">{{ bots|length }}</h4>
+                                <small>Всего ботов</small>
+                            </div>
+                            <div class="col-4">
+                                <h4 class="text-success">{{ bots|selectattr('status', 'equalto', 'running')|list|length }}</h4>
+                                <small>Активных</small>
+                            </div>
+                            <div class="col-4">
+                                <h4 class="text-warning">{{ bots|selectattr('status', 'equalto', 'stopped')|list|length }}</h4>
+                                <small>Остановленных</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Список ботов -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="fas fa-robot"></i> Мои боты</h5>
+                        <a href="/bots" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Управление ботами
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        {% if bots %}
+                            <div class="row">
+                                {% for bot in bots %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card bot-card">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ bot.name }}</h6>
+                                            <p class="card-text">
+                                                <span class="badge bg-{{ 'success' if bot.status == 'running' else 'warning' if bot.status == 'stopped' else 'secondary' }}">
+                                                    {{ bot.status }}
+                                                </span>
+                                                <br>
+                                                <small class="text-muted">{{ bot.type }}</small>
+                                            </p>
+                                            <small class="text-muted">
+                                                Создан: {{ bot.created_at[:10] }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted">
+                                <i class="fas fa-robot fa-3x mb-3"></i>
+                                <p>У вас пока нет ботов</p>
+                                <a href="/bots" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Создать первого бота
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Обновляем баланс каждые 30 секунд
+        setInterval(function() {
+            fetch('/api/balance')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('balanceAmount').textContent = '$' + data.balance.total_usdt;
+                        document.getElementById('balanceDetails').textContent = 
+                            'Подключено бирж: ' + data.balance.connected_exchanges;
+                    }
+                });
+        }, 30000);
+    </script>
+</body>
+</html>

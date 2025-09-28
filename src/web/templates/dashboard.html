@@ -516,7 +516,7 @@
     </div>
 </div>
 
-{% if user.role in ['admin', 'super_admin'] %}
+{% if session.role in ['admin', 'super_admin'] %}
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
