@@ -267,8 +267,38 @@
                         </button>
                     </div>
                 </div>
+        </div>
+    </div>
+
+<!-- Модальное окно деталей бота -->
+<div class="modal fade" id="botDetailsModal" tabindex="-1" aria-labelledby="botDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="botDetailsModalLabel">
+                    <i class="fas fa-robot"></i> Детали бота
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <div id="botDetailsContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                        <p class="mt-2">Загружаем детальную информацию о боте...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" onclick="refreshBotDetails()">
+                    <i class="fas fa-sync"></i> Обновить
+                </button>
             </div>
         </div>
+    </div>
+</div>
 
 <script>
 // Определяем функцию createBot в глобальной области
@@ -654,6 +684,423 @@ function refreshBots() {
     });
 }
 
+// Функция для открытия модального окна с деталями бота
+function loadBotDetails(botId) {
+    console.log('Загрузка деталей бота:', botId);
+    
+    try {
+        // Проверяем, что элемент существует
+        const modalElement = document.getElementById('botDetailsModal');
+        if (!modalElement) {
+            console.error('Элемент botDetailsModal не найден!');
+            alert('Ошибка: модальное окно не найдено в DOM');
+            return;
+        }
+        
+        console.log('Элемент botDetailsModal найден:', modalElement);
+        
+        // Пробуем два способа открытия модального окна
+        try {
+            // Способ 1: Bootstrap 5
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+            console.log('Модальное окно открыто через Bootstrap 5');
+        } catch (e) {
+            console.error('Ошибка Bootstrap 5:', e);
+            
+            // Способ 2: jQuery Bootstrap (fallback)
+            if (typeof $ !== 'undefined') {
+                $(modalElement).modal('show');
+                console.log('Модальное окно открыто через jQuery');
+            } else {
+                // Способ 3: прямое управление CSS
+                modalElement.style.display = 'block';
+                modalElement.classList.add('show');
+                document.body.classList.add('modal-open');
+                console.log('Модальное окно открыто через CSS');
+            }
+        }
+        
+        // Устанавливаем заголовок
+        const titleElement = document.getElementById('botDetailsModalLabel');
+        if (titleElement) {
+            titleElement.innerHTML = `<i class="fas fa-robot"></i> Детали бота ${botId}`;
+        }
+        
+        // Загружаем данные
+        loadBotDetailsData(botId);
+        
+    } catch (error) {
+        console.error('Критическая ошибка в loadBotDetails:', error);
+        alert('Ошибка открытия модального окна: ' + error.message);
+    }
+}
+
+// Функция для загрузки данных бота
+function loadBotDetailsData(botId) {
+    const content = document.getElementById('botDetailsContent');
+    
+    // Показываем спиннер
+    content.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+            <p class="mt-2">Загружаем детальную информацию о боте...</p>
+        </div>
+    `;
+    
+    // Загружаем данные
+    fetch(`/api/bots/${botId}/details`)
+    .then(response => response.json())
+    .then(data => {
+        console.log('Получены данные от API:', data);
+        console.log('data.bot существует?', !!data.bot);
+        console.log('data.success:', data.success);
+        console.log('Ключи в data:', Object.keys(data));
+        
+        if (data.success) {
+            // Пробуем найти данные бота в разных местах
+            let botData = data.bot || data.bot_details || data;
+            console.log('Найденные данные бота:', botData);
+            
+            if (botData) {
+                renderBotDetails(botData, data.charts, data.system_metrics, data.logs);
+            } else {
+                console.error('Данные бота не найдены в ответе API');
+                content.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Данные бота не найдены. Ответ API: <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            }
+        } else {
+            console.error('API вернул ошибку:', data);
+            content.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Ошибка API: ${data.error || 'Неизвестная ошибка'}
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка загрузки деталей бота:', error);
+        content.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+                Ошибка соединения при загрузке деталей бота
+            </div>
+        `;
+    });
+}
+
+// Функция для отображения деталей бота
+function renderBotDetails(bot, charts, metrics, logs) {
+    console.log('Функция renderBotDetails вызвана с данными:', bot);
+    
+    const content = document.getElementById('botDetailsContent');
+    
+    // Безопасная обработка данных
+    const safeBot = {
+        basic_info: bot.basic_info || {
+            name: bot.bot_name || bot.name || 'Неизвестный бот',
+            type: bot.bot_type || bot.type || 'grid',
+            status: bot.status || 'unknown',
+            mode: bot.mode || 'demo',
+            api_key_id: bot.api_key_id || 'Не указан',
+            created_at: bot.created_at || new Date().toISOString(),
+            id: bot.bot_id || bot.id || 'unknown'
+        },
+        trading_settings: bot.trading_settings || {
+            capital: 1000,
+            risk_level: 'medium',
+            max_pairs: 8
+        },
+        performance: bot.performance || {
+            total_trades: 0,
+            win_rate: 0,
+            profit_loss: 0
+        },
+        balance_info: bot.balance_info || {
+            allocated_capital: 1000,
+            available_capital: 1000,
+            used_capital: 0,
+            profit_loss: 0
+        },
+        risk_management: bot.risk_management || {
+            max_risk_per_trade: 2.0,
+            total_risk_limit: 10.0,
+            current_risk: 0.0
+        },
+        automation_settings: bot.automation_settings || {
+            auto_rebalance: true,
+            auto_pair_selection: true,
+            auto_risk_adjustment: true,
+            capital_distribution_mode: 'smart'
+        },
+        trading_pairs: bot.trading_pairs || ['BTC/USDT']
+    };
+    
+    console.log('Безопасные данные бота:', safeBot);
+    
+    content.innerHTML = `
+        <!-- Навигация по вкладкам -->
+        <ul class="nav nav-tabs" id="botDetailsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                    <i class="fas fa-info-circle"></i> Обзор
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button" role="tab">
+                    <i class="fas fa-cog"></i> Настройки
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab">
+                    <i class="fas fa-chart-line"></i> Производительность
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="automation-tab" data-bs-toggle="tab" data-bs-target="#automation" type="button" role="tab">
+                    <i class="fas fa-robot"></i> Автоматизация
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">
+                    <i class="fas fa-file-text"></i> Логи
+                </button>
+            </li>
+        </ul>
+        
+        <!-- Содержимое вкладок -->
+        <div class="tab-content" id="botDetailsTabContent">
+            <!-- Вкладка Обзор -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-info"></i> Основная информация</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Название:</strong> ${safeBot.basic_info.name}</p>
+                                <p><strong>Тип:</strong> ${safeBot.basic_info.type.toUpperCase()} Bot</p>
+                                <p><strong>Статус:</strong> 
+                                    <span class="badge bg-${safeBot.basic_info.status === 'running' ? 'success' : 'secondary'}">
+                                        ${safeBot.basic_info.status}
+                                    </span>
+                                </p>
+                                <p><strong>Режим:</strong> 
+                                    <span class="badge bg-${safeBot.basic_info.mode === 'demo' ? 'warning' : 'success'}">
+                                        ${safeBot.basic_info.mode === 'demo' ? 'Demo' : 'Live'}
+                                    </span>
+                                </p>
+                                <p><strong>API ключ:</strong> ${safeBot.basic_info.api_key_id}</p>
+                                <p><strong>Создан:</strong> ${new Date(safeBot.basic_info.created_at).toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-wallet"></i> Баланс и капитал</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Выделенный капитал:</strong> $${safeBot.balance_info.allocated_capital}</p>
+                                <p><strong>Доступный:</strong> $${safeBot.balance_info.available_capital}</p>
+                                <p><strong>Используемый:</strong> $${safeBot.balance_info.used_capital}</p>
+                                <p><strong>P&L:</strong> 
+                                    <span class="text-${safeBot.balance_info.profit_loss >= 0 ? 'success' : 'danger'}">
+                                        $${safeBot.balance_info.profit_loss}
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Вкладка Настройки -->
+            <div class="tab-pane fade" id="settings" role="tabpanel">
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-cog"></i> Торговые настройки</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Капитал:</label>
+                                    <input type="number" class="form-control" value="${safeBot.trading_settings.capital}">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Уровень риска:</label>
+                                    <select class="form-select">
+                                        <option value="low" ${safeBot.trading_settings.risk_level === 'low' ? 'selected' : ''}>Низкий</option>
+                                        <option value="medium" ${safeBot.trading_settings.risk_level === 'medium' ? 'selected' : ''}>Средний</option>
+                                        <option value="high" ${safeBot.trading_settings.risk_level === 'high' ? 'selected' : ''}>Высокий</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Максимум пар:</label>
+                                    <input type="number" class="form-control" value="${safeBot.trading_settings.max_pairs}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-shield-alt"></i> Риск-менеджмент</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Макс. риск на сделку:</strong> ${safeBot.risk_management.max_risk_per_trade}%</p>
+                                <p><strong>Общий лимит риска:</strong> ${safeBot.risk_management.total_risk_limit}%</p>
+                                <p><strong>Текущий риск:</strong> ${safeBot.risk_management.current_risk}%</p>
+                                <div class="progress">
+                                    <div class="progress-bar bg-${safeBot.risk_management.current_risk > 7 ? 'danger' : 'success'}" 
+                                         style="width: ${(safeBot.risk_management.current_risk / safeBot.risk_management.total_risk_limit) * 100}%">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Вкладка Производительность -->
+            <div class="tab-pane fade" id="performance" role="tabpanel">
+                <div class="row mt-4">
+                    <div class="col-md-4">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="text-primary">${safeBot.performance.total_trades}</h5>
+                                <p class="mb-0">Всего сделок</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="text-success">${safeBot.performance.win_rate}%</h5>
+                                <p class="mb-0">Винрейт</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="text-${safeBot.performance.profit_loss >= 0 ? 'success' : 'danger'}">
+                                    $${safeBot.performance.profit_loss}
+                                </h5>
+                                <p class="mb-0">P&L</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-chart-line"></i> График прибыли</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="profitChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Вкладка Автоматизация -->
+            <div class="tab-pane fade" id="automation" role="tabpanel">
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-robot"></i> Автоматические функции</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="autoRebalance" ${safeBot.automation_settings.auto_rebalance ? 'checked' : ''}>
+                                    <label class="form-check-label" for="autoRebalance">
+                                        Автоматическая ребалансировка
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="autoPairSelection" ${safeBot.automation_settings.auto_pair_selection ? 'checked' : ''}>
+                                    <label class="form-check-label" for="autoPairSelection">
+                                        Автоматический выбор пар
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="autoRiskAdjustment" ${safeBot.automation_settings.auto_risk_adjustment ? 'checked' : ''}>
+                                    <label class="form-check-label" for="autoRiskAdjustment">
+                                        Автоматическая настройка риска
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-balance-scale"></i> Распределение капитала</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Режим:</strong> ${safeBot.automation_settings.capital_distribution_mode}</p>
+                                <div class="mb-3">
+                                    <label class="form-label">Торговые пары:</label>
+                                    <div class="badge-container">
+                                        ${(safeBot.trading_pairs || []).map(pair => `<span class="badge bg-primary me-1">${pair}</span>`).join('')}
+                                    </div>
+                                </div>
+                                <button class="btn btn-outline-primary btn-sm" onclick="manageTradingPairs('${safeBot.basic_info.id}')">
+                                    <i class="fas fa-edit"></i> Управление парами
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Вкладка Логи -->
+            <div class="tab-pane fade" id="logs" role="tabpanel">
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="fas fa-file-text"></i> Логи активности</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="log-container" style="max-height: 400px; overflow-y: auto;">
+                                    ${(logs || []).map(log => `
+                                        <div class="log-entry mb-2 p-2 border rounded">
+                                            <small class="text-muted">${log.time}</small>
+                                            <span class="badge bg-${log.level === 'ERROR' ? 'danger' : 'info'} ms-2">${log.level}</span>
+                                            <div>${log.message}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Функция для обновления деталей бота
+function refreshBotDetails() {
+    const modalTitle = document.getElementById('botDetailsModalLabel').textContent;
+    const botId = modalTitle.split(' ').pop();
+    loadBotDetailsData(botId);
+}
+
 function forceStopAllBots() {
     if (!confirm('⚠️ ВНИМАНИЕ!\n\nВы собираетесь принудительно остановить ВСЕ боты.\n\nЭто действие:\n• Немедленно остановит все запущенные боты\n• Может привести к потере незавершенных сделок\n• Нельзя отменить\n\nПродолжить?')) {
         return;
@@ -847,8 +1294,8 @@ function loadBotDetails(botId) {
         });
 }
                     
-function renderBotDetails(botDetails) {
-    console.log('DEBUG: renderBotDetails called with:', botDetails);
+function renderBotDetailsOld(botDetails) {
+    console.log('DEBUG: renderBotDetailsOld called with:', botDetails);
     // Проверяем, что у нас есть необходимые данные
     if (!botDetails) {
         document.getElementById('botDetailsContent').innerHTML = `
