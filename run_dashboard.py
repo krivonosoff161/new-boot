@@ -283,8 +283,8 @@ def api_bots_status():
                 for bot_id, bot_info in bots_status.items():
                     # Фильтруем только ботов текущего пользователя
                     if bot_info.get('user_id') == user_id:
-                    bots_data.append({
-                        'id': bot_id,
+                        bots_data.append({
+                            'id': bot_id,
                             'bot_name': bot_info.get('bot_name', bot_id),
                             'status': bot_info.get('status', 'unknown'),
                             'bot_type': bot_info.get('bot_type', 'unknown'),
