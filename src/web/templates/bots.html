@@ -747,37 +747,39 @@ function loadBotDetailsData(botId) {
         </div>
     `;
     
-    // Загружаем данные
-    fetch(`/api/bots/${botId}/details`)
-    .then(response => response.json())
-    .then(data => {
-        console.log('Получены данные от API:', data);
-        console.log('data.bot существует?', !!data.bot);
-        console.log('data.success:', data.success);
-        console.log('Ключи в data:', Object.keys(data));
+    // Загружаем данные параллельно
+    Promise.all([
+        fetch(`/api/bots/${botId}/details`).then(response => response.json()),
+        fetch(`/api/bots/${botId}/logs`).then(response => response.json()).catch(() => ({ success: false, logs: [] }))
+    ])
+    .then(([detailsData, logsData]) => {
+        console.log('Получены данные от API:', detailsData);
+        console.log('Получены логи от API:', logsData);
         
-        if (data.success) {
+        if (detailsData.success) {
             // Пробуем найти данные бота в разных местах
-            let botData = data.bot || data.bot_details || data;
+            let botData = detailsData.bot || detailsData.bot_details || detailsData;
             console.log('Найденные данные бота:', botData);
             
             if (botData) {
-                renderBotDetails(botData, data.charts, data.system_metrics, data.logs);
+                // Добавляем логи к данным бота
+                botData.logs = logsData.success ? logsData.logs : [];
+                renderBotDetails(botData, detailsData.charts, detailsData.system_metrics, botData.logs);
             } else {
                 console.error('Данные бота не найдены в ответе API');
                 content.innerHTML = `
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle"></i>
-                        Данные бота не найдены. Ответ API: <pre>${JSON.stringify(data, null, 2)}</pre>
+                        Данные бота не найдены. Ответ API: <pre>${JSON.stringify(detailsData, null, 2)}</pre>
                     </div>
                 `;
             }
         } else {
-            console.error('API вернул ошибку:', data);
+            console.error('API вернул ошибку:', detailsData);
             content.innerHTML = `
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle"></i>
-                    Ошибка API: ${data.error || 'Неизвестная ошибка'}
+                    Ошибка API: ${detailsData.error || 'Неизвестная ошибка'}
                 </div>
             `;
         }
@@ -1118,14 +1120,34 @@ function renderBotDetails(bot, charts, metrics, logs) {
                                 <h6><i class="fas fa-file-text"></i> Логи активности</h6>
                             </div>
                             <div class="card-body">
-                                <div class="log-container" style="max-height: 400px; overflow-y: auto;">
-                                    ${(logs || []).map(log => `
-                                        <div class="log-entry mb-2 p-2 border rounded">
-                                            <small class="text-muted">${log.time}</small>
-                                            <span class="badge bg-${log.level === 'ERROR' ? 'danger' : 'info'} ms-2">${log.level}</span>
-                                            <div>${log.message}</div>
+                                <div class="log-container" style="max-height: 400px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">
+                                    ${(logs || []).length > 0 ? (logs || []).map(log => {
+                                        // Парсим строку лога для извлечения времени и уровня
+                                        const logMatch = log.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \| (\w+) \| .* - (.+)$/);
+                                        if (logMatch) {
+                                            const [, time, level, message] = logMatch;
+                                            const levelClass = level === 'ERROR' ? 'danger' : level === 'WARNING' ? 'warning' : 'info';
+                                            return `
+                                                <div class="log-entry mb-2 p-2 border rounded" style="background-color: white;">
+                                                    <small class="text-muted">${time}</small>
+                                                    <span class="badge bg-${levelClass} ms-2">${level}</span>
+                                                    <div style="margin-top: 5px; font-family: monospace; font-size: 0.9em;">${message}</div>
+                                                </div>
+                                            `;
+                                        } else {
+                                            return `
+                                                <div class="log-entry mb-2 p-2 border rounded" style="background-color: white;">
+                                                    <div style="font-family: monospace; font-size: 0.9em;">${log}</div>
+                                                </div>
+                                            `;
+                                        }
+                                    }).join('') : `
+                                        <div class="text-center text-muted py-3">
+                                            <i class="fas fa-file-text fa-2x mb-2"></i>
+                                            <p>Логи бота пока отсутствуют</p>
+                                            <small>Логи появятся после запуска бота</small>
                                         </div>
-                                    `).join('')}
+                                    `}
                                 </div>
                             </div>
                         </div>

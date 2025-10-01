@@ -169,3 +169,5 @@ class BalanceCalculator:
                 'exchanges': [],
                 'error': f'Ошибка чтения детального баланса: {str(e)}'
             }
+
+

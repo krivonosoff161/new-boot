@@ -76,7 +76,7 @@ class SmartPairSelector:
     async def _get_all_pairs(self) -> List[str]:
         """Получить все доступные пары с биржи"""
         try:
-            exchange = self.exchange_manager.create_exchange_instance('demo', 'demo_key', 'demo_secret')
+            exchange = self.exchange_manager.create_exchange_instance('okx', 'demo_key', 'demo_secret')
             markets = await exchange.load_markets()
             
             # Фильтруем только USDT пары
@@ -92,7 +92,7 @@ class SmartPairSelector:
     async def _analyze_pair(self, symbol: str) -> Optional[PairAnalysis]:
         """Анализ торговой пары"""
         try:
-            exchange = self.exchange_manager.create_exchange_instance('demo', 'demo_key', 'demo_secret')
+            exchange = self.exchange_manager.create_exchange_instance('okx', 'demo_key', 'demo_secret')
             
             # Получаем исторические данные
             ohlcv = await exchange.fetch_ohlcv(symbol, '1h', limit=100)

@@ -246,3 +246,5 @@ class SafeBotManager:
         config_file = f"{self.configs_dir}/{bot_info['bot_id']}_config.json"
         with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(bot_info, f, ensure_ascii=False, indent=2)
+
+

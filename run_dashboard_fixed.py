@@ -501,3 +501,5 @@ if __name__ == '__main__':
     print("⏹️ Для остановки нажмите Ctrl+C")
     
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+

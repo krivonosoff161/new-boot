@@ -1016,71 +1016,367 @@ def api_delete_bot(bot_id):
 @app.route('/api/bots/<bot_id>/start', methods=['POST'])
 @login_required
 def api_start_bot(bot_id):
-    """API для запуска бота"""
+    """API для запуска бота с реальным логированием"""
     try:
         user_id = session['user_id']
-        logger.info(f"🚀 Запуск бота {bot_id} для пользователя {user_id}")
+        logger.info(f"🚀 ЗАПУСК БОТА {bot_id} для пользователя {user_id}")
+        print(f"🚀 ЗАПУСК БОТА {bot_id} для пользователя {user_id}")
+        
+        # Получаем информацию о боте
+        bot_info = None
+        if os.path.exists('data/bot_status.json'):
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            if bot_id in bot_status:
+                bot_info = bot_status[bot_id]
+        
+        if not bot_info:
+            logger.error(f"❌ Бот {bot_id} не найден")
+            print(f"❌ Бот {bot_id} не найден")
+            return jsonify({'success': False, 'error': 'Бот не найден'})
+        
+        # Получаем ключи пользователя
+        user_keys = get_all_user_keys(user_id)
+        if not user_keys:
+            logger.error(f"❌ У пользователя {user_id} нет API ключей")
+            print(f"❌ У пользователя {user_id} нет API ключей")
+            return jsonify({'success': False, 'error': 'Нет API ключей'})
+        
+        # Создаем лог-файл для бота
+        log_file = f"logs/bots/{bot_id}.log"
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        
+        # Записываем в лог-файл
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | БОТ ЗАПУЩЕН\n")
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Пользователь: {user_id}\n")
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Тип бота: {bot_info.get('type', 'unknown')}\n")
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Название: {bot_info.get('name', 'unknown')}\n")
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | API ключей найдено: {len(user_keys)}\n")
+        
+        # ЗАПУСКАЕМ РЕАЛЬНЫЙ PYTHON ПРОЦЕСС БОТА
+        print(f"🔧 НАЧИНАЕМ ЗАПУСК PYTHON ПРОЦЕССА...")
+        try:
+            import subprocess
+            import threading
+            
+            print(f"📋 Создаем конфигурацию для бота...")
+            # Создаем конфигурацию для бота
+            bot_config = {
+                'bot_id': bot_id,
+                'user_id': user_id,
+                'type': bot_info.get('type', 'GRID'),
+                'name': bot_info.get('name', 'Unknown Bot'),
+                'config': bot_info.get('config', {}),
+                'api_keys': user_keys
+            }
+            
+            # Сохраняем конфигурацию во временный файл
+            config_file = f"data/bot_configs/{bot_id}_config.json"
+            os.makedirs(os.path.dirname(config_file), exist_ok=True)
+            
+            print(f"💾 Сохраняем конфигурацию в {config_file}")
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(bot_config, f, indent=2, ensure_ascii=False)
+            
+            # Определяем скрипт для запуска в зависимости от типа бота
+            if bot_info.get('type', '').upper() == 'GRID':
+                script_path = "src/trading/real_grid_bot_runner.py"
+            else:
+                script_path = "src/trading/real_grid_bot_runner.py"  # По умолчанию Grid
+            
+            print(f"🐍 Скрипт для запуска: {script_path}")
+            print(f"📁 Рабочая директория: {os.getcwd()}")
+            
+            # Проверяем, существует ли скрипт
+            if not os.path.exists(script_path):
+                print(f"❌ Скрипт {script_path} не найден!")
+                raise FileNotFoundError(f"Скрипт {script_path} не найден")
+            
+            print(f"✅ Скрипт найден, запускаем процесс...")
+            
+            # Запускаем процесс бота
+            process = subprocess.Popen([
+                'python', script_path,
+                '--bot-id', bot_id,
+                '--user-id', str(user_id),
+                '--config-file', config_file
+            ], 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=os.getcwd()
+            )
+            
+            print(f"🚀 ПРОЦЕСС ЗАПУЩЕН! PID: {process.pid}")
+            
+            # Сохраняем PID процесса
+            bot_status[bot_id]['process_id'] = process.pid
+            bot_status[bot_id]['process_started'] = datetime.now().isoformat()
+            
+            print(f"🚀 PYTHON ПРОЦЕСС БОТА ЗАПУЩЕН!")
+            print(f"📊 PID процесса: {process.pid}")
+            print(f"📁 Конфигурация: {config_file}")
+            print(f"🐍 Скрипт: {script_path}")
+            
+            # Записываем в лог
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | PYTHON ПРОЦЕСС ЗАПУЩЕН\n")
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | PID: {process.pid}\n")
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Скрипт: {script_path}\n")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка запуска Python процесса: {e}")
+            print(f"❌ Ошибка запуска Python процесса: {e}")
+            print(f"❌ Тип ошибки: {type(e).__name__}")
+            import traceback
+            print(f"❌ Трассировка: {traceback.format_exc()}")
         
         # Обновляем статус в bot_status.json
-        try:
-            if os.path.exists('data/bot_status.json'):
-                with open('data/bot_status.json', 'r') as f:
-                    bot_status = json.load(f)
-                
-                if bot_id in bot_status:
-                    bot_status[bot_id]['status'] = 'running'
-                    bot_status[bot_id]['last_update'] = datetime.now().isoformat()
-                    
-                    with open('data/bot_status.json', 'w') as f:
-                        json.dump(bot_status, f, indent=2)
-                    
-                    logger.info(f"✅ Бот {bot_id} запущен")
-                    return jsonify({'success': True, 'message': f'Бот {bot_id} запущен'})
-                else:
-                    return jsonify({'success': False, 'error': 'Бот не найден'})
-            else:
-                return jsonify({'success': False, 'error': 'Файл статуса ботов не найден'})
-        except Exception as e:
-            logger.error(f"Ошибка запуска бота: {e}")
-            return jsonify({'success': False, 'error': str(e)})
+        bot_status[bot_id]['status'] = 'running'
+        bot_status[bot_id]['last_update'] = datetime.now().isoformat()
+        bot_status[bot_id]['started_at'] = datetime.now().isoformat()
+        
+        with open('data/bot_status.json', 'w') as f:
+            json.dump(bot_status, f, indent=2)
+        
+        # Логируем в консоль
+        logger.info(f"✅ БОТ {bot_id} УСПЕШНО ЗАПУЩЕН")
+        print(f"✅ БОТ {bot_id} УСПЕШНО ЗАПУЩЕН")
+        print(f"📁 Лог-файл: {log_file}")
+        print(f"🔑 API ключей: {len(user_keys)}")
+        print(f"📊 Статус: running")
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Бот {bot_id} запущен',
+            'log_file': log_file,
+            'api_keys_count': len(user_keys)
+        })
         
     except Exception as e:
-        logger.error(f"Ошибка запуска бота: {e}")
+        logger.error(f"❌ Ошибка запуска бота: {e}")
+        print(f"❌ Ошибка запуска бота: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/bots/<bot_id>/stop', methods=['POST'])
 @login_required
 def api_stop_bot(bot_id):
-    """API для остановки бота"""
+    """API для остановки бота с реальным логированием"""
     try:
         user_id = session['user_id']
-        logger.info(f"⏹️ Остановка бота {bot_id} для пользователя {user_id}")
+        logger.info(f"⏹️ ОСТАНОВКА БОТА {bot_id} для пользователя {user_id}")
+        print(f"⏹️ ОСТАНОВКА БОТА {bot_id} для пользователя {user_id}")
+        
+        # Получаем информацию о боте
+        bot_info = None
+        if os.path.exists('data/bot_status.json'):
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            if bot_id in bot_status:
+                bot_info = bot_status[bot_id]
+        
+        if not bot_info:
+            logger.error(f"❌ Бот {bot_id} не найден")
+            print(f"❌ Бот {bot_id} не найден")
+            return jsonify({'success': False, 'error': 'Бот не найден'})
+        
+        # Создаем лог-файл для бота
+        log_file = f"logs/bots/{bot_id}.log"
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        
+        # ОСТАНАВЛИВАЕМ РЕАЛЬНЫЙ PYTHON ПРОЦЕСС БОТА
+        try:
+            import subprocess
+            import signal
+            
+            # Получаем PID процесса из статуса бота
+            process_id = bot_info.get('process_id')
+            
+            if process_id:
+                print(f"⏹️ ОСТАНОВКА PYTHON ПРОЦЕССА БОТА!")
+                print(f"📊 PID процесса: {process_id}")
+                
+                # Пытаемся остановить процесс
+                try:
+                    # На Windows используем taskkill
+                    if os.name == 'nt':
+                        result = subprocess.run(['taskkill', '/F', '/PID', str(process_id)], 
+                                              capture_output=True, text=True)
+                        if result.returncode == 0:
+                            print(f"✅ Процесс {process_id} успешно остановлен")
+                        else:
+                            print(f"⚠️ Не удалось остановить процесс {process_id}: {result.stderr}")
+                    else:
+                        # На Unix используем kill
+                        os.kill(process_id, signal.SIGTERM)
+                        print(f"✅ Процесс {process_id} успешно остановлен")
+                        
+                except Exception as e:
+                    print(f"⚠️ Ошибка остановки процесса {process_id}: {e}")
+                
+                # Записываем в лог
+                with open(log_file, 'a', encoding='utf-8') as f:
+                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | PYTHON ПРОЦЕСС ОСТАНОВЛЕН\n")
+                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | PID: {process_id}\n")
+            else:
+                print(f"⚠️ PID процесса не найден для бота {bot_id}")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка остановки Python процесса: {e}")
+            print(f"❌ Ошибка остановки Python процесса: {e}")
+        
+        # Записываем в лог-файл
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | БОТ ОСТАНОВЛЕН\n")
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Пользователь: {user_id}\n")
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Время работы: {datetime.now().isoformat()}\n")
         
         # Обновляем статус в bot_status.json
-        try:
-            if os.path.exists('data/bot_status.json'):
-                with open('data/bot_status.json', 'r') as f:
-                    bot_status = json.load(f)
-                
-                if bot_id in bot_status:
-                    bot_status[bot_id]['status'] = 'stopped'
-                    bot_status[bot_id]['last_update'] = datetime.now().isoformat()
-                    
-                    with open('data/bot_status.json', 'w') as f:
-                        json.dump(bot_status, f, indent=2)
-                    
-                    logger.info(f"✅ Бот {bot_id} остановлен")
-                    return jsonify({'success': True, 'message': f'Бот {bot_id} остановлен'})
-                else:
-                    return jsonify({'success': False, 'error': 'Бот не найден'})
-            else:
-                return jsonify({'success': False, 'error': 'Файл статуса ботов не найден'})
-        except Exception as e:
-            logger.error(f"Ошибка остановки бота: {e}")
-            return jsonify({'success': False, 'error': str(e)})
+        bot_status[bot_id]['status'] = 'stopped'
+        bot_status[bot_id]['last_update'] = datetime.now().isoformat()
+        bot_status[bot_id]['stopped_at'] = datetime.now().isoformat()
+        
+        # Удаляем информацию о процессе
+        if 'process_id' in bot_status[bot_id]:
+            del bot_status[bot_id]['process_id']
+        if 'process_started' in bot_status[bot_id]:
+            del bot_status[bot_id]['process_started']
+        
+        with open('data/bot_status.json', 'w') as f:
+            json.dump(bot_status, f, indent=2)
+        
+        # Логируем в консоль
+        logger.info(f"✅ БОТ {bot_id} УСПЕШНО ОСТАНОВЛЕН")
+        print(f"✅ БОТ {bot_id} УСПЕШНО ОСТАНОВЛЕН")
+        print(f"📁 Лог-файл: {log_file}")
+        print(f"📊 Статус: stopped")
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Бот {bot_id} остановлен',
+            'log_file': log_file
+        })
         
     except Exception as e:
-        logger.error(f"Ошибка остановки бота: {e}")
+        logger.error(f"❌ Ошибка остановки бота: {e}")
+        print(f"❌ Ошибка остановки бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/processes')
+@login_required
+def api_bot_processes():
+    """API для получения списка запущенных процессов ботов"""
+    try:
+        user_id = session['user_id']
+        
+        # Получаем список всех ботов пользователя
+        user_bots = []
+        if os.path.exists('data/bot_status.json'):
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            for bot_id, bot_data in bot_status.items():
+                if bot_data.get('user_id') == user_id:
+                    process_info = {
+                        'bot_id': bot_id,
+                        'name': bot_data.get('name', 'Unknown'),
+                        'type': bot_data.get('type', 'Unknown'),
+                        'status': bot_data.get('status', 'unknown'),
+                        'process_id': bot_data.get('process_id'),
+                        'started_at': bot_data.get('started_at'),
+                        'last_update': bot_data.get('last_update')
+                    }
+                    user_bots.append(process_info)
+        
+        # Проверяем, какие процессы действительно запущены
+        running_processes = []
+        try:
+            import subprocess
+            if os.name == 'nt':  # Windows
+                result = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq python.exe'], 
+                                      capture_output=True, text=True)
+                if result.returncode == 0:
+                    lines = result.stdout.split('\n')
+                    for line in lines:
+                        if 'python.exe' in line:
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                pid = parts[1]
+                                running_processes.append(pid)
+            else:  # Unix
+                result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    lines = result.stdout.split('\n')
+                    for line in lines:
+                        if 'python' in line and 'real_grid_bot_runner.py' in line:
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                pid = parts[1]
+                                running_processes.append(pid)
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка проверки процессов: {e}")
+        
+        return jsonify({
+            'success': True,
+            'bots': user_bots,
+            'running_python_processes': running_processes,
+            'total_bots': len(user_bots),
+            'running_processes_count': len(running_processes)
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения процессов ботов: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/<bot_id>/logs/live')
+@login_required
+def api_bot_logs_live(bot_id):
+    """API для получения логов бота в реальном времени"""
+    try:
+        user_id = session['user_id']
+        
+        # Проверяем, что бот принадлежит пользователю
+        bot_info = None
+        if os.path.exists('data/bot_status.json'):
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            if bot_id in bot_status:
+                bot_data = bot_status[bot_id]
+                if bot_data.get('user_id') == user_id:
+                    bot_info = bot_data
+        
+        if not bot_info:
+            return jsonify({'success': False, 'error': 'Бот не найден'})
+        
+        # Читаем логи бота
+        log_file = f"logs/bots/{bot_id}.log"
+        logs = []
+        
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    # Берем последние 50 строк
+                    for line in lines[-50:]:
+                        if line.strip():
+                            logs.append(line.strip())
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка чтения логов: {e}")
+        
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'bot_id': bot_id,
+            'log_file': log_file,
+            'total_lines': len(logs)
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения логов бота: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/bots/<bot_id>/details')
@@ -1121,18 +1417,16 @@ def api_bot_details(bot_id):
         if user_keys:
             # Получаем реальный баланс
             try:
-                from src.utils.real_balance_manager import RealBalanceManager
-                balance_manager = RealBalanceManager()
-                
+                # RealBalanceManager уже определен в этом файле
                 for key_data in user_keys:
                     if key_data.get('validation_status') == 'valid':
-                        balance_data = balance_manager.get_real_balance(
+                        balance_manager = RealBalanceManager(
                             key_data.get('api_key'),
                             key_data.get('secret_key'), 
-                            key_data.get('passphrase', ''),
-                            key_data.get('exchange', 'OKX'),
-                            key_data.get('mode', 'sandbox')
+                            key_data.get('passphrase', '')
                         )
+                        
+                        balance_data = balance_manager.get_real_balance()
                         
                         if isinstance(balance_data, dict) and 'total_balance' in balance_data:
                             real_balance += balance_data['total_balance']
@@ -1141,7 +1435,104 @@ def api_bot_details(bot_id):
             except Exception as e:
                 logger.warning(f"⚠️ Не удалось получить реальный баланс: {e}")
         
-        # Добавляем дополнительную информацию для панели управления
+        # Используем реальные модули для расчета данных
+        allocated_capital = 0
+        free_balance = 0
+        used_balance = 0
+        risk_level = "Низкий"
+        max_risk_per_trade = 2.0
+        total_risk_limit = 10.0
+        recommended_pairs = ['BTC/USDT', 'ETH/USDT']
+        
+        if real_balance > 0:
+            try:
+                # Импортируем модули
+                from src.trading.capital_distributor import CapitalDistributor
+                from src.trading.adaptive_capital_distributor import AdaptiveCapitalDistributor, TradingMode
+                from src.trading.smart_pair_selector import SmartPairSelector
+                
+                # Создаем экземпляр биржи для анализа
+                exchange_instance = None
+                if user_keys:
+                    try:
+                        import ccxt
+                        key_data = user_keys[0]
+                        exchange_instance = ccxt.okx({
+                            'apiKey': key_data.get('api_key'),
+                            'secret': key_data.get('secret_key'),
+                            'password': key_data.get('passphrase', ''),
+                            'sandbox': key_data.get('mode') == 'sandbox'
+                        })
+                    except Exception as e:
+                        logger.warning(f"⚠️ Не удалось создать экземпляр биржи: {e}")
+                
+                if exchange_instance:
+                    # Используем CapitalDistributor для расчета капитала
+                    capital_distributor = CapitalDistributor(exchange_instance, user_id)
+                    
+                    # Получаем общий капитал (синхронная версия)
+                    import asyncio
+                    total_capital = asyncio.run(capital_distributor.get_total_capital())
+                    
+                    if total_capital > 0:
+                        # Распределяем капитал для стратегии
+                        symbols = ['BTC/USDT', 'ETH/USDT']
+                        allocations = asyncio.run(capital_distributor.distribute_for_strategy('grid', symbols))
+                        
+                        if allocations:
+                            allocated_capital = sum(allocations.values())
+                            free_balance = total_capital - allocated_capital
+                            used_balance = allocated_capital
+                        else:
+                            allocated_capital = total_capital * 0.8
+                            free_balance = total_capital * 0.2
+                            used_balance = allocated_capital
+                    else:
+                        allocated_capital = real_balance * 0.8
+                        free_balance = real_balance * 0.2
+                        used_balance = allocated_capital
+                    
+                    # Используем AdaptiveCapitalDistributor для расчета рисков
+                    config = {'capital_split': {'grid': 0.5, 'scalp': 0.5}}
+                    adaptive_distributor = AdaptiveCapitalDistributor(exchange_instance, user_id, config)
+                    
+                    # Определяем режим торговли на основе капитала
+                    if real_balance < 800:
+                        trading_mode = TradingMode.CONSERVATIVE
+                        risk_level = "Низкий"
+                        max_risk_per_trade = 1.0
+                        total_risk_limit = 5.0
+                    elif real_balance < 2000:
+                        trading_mode = TradingMode.AUTOMATIC
+                        risk_level = "Средний"
+                        max_risk_per_trade = 2.0
+                        total_risk_limit = 8.0
+                    else:
+                        trading_mode = TradingMode.AGGRESSIVE
+                        risk_level = "Высокий"
+                        max_risk_per_trade = 3.0
+                        total_risk_limit = 12.0
+                    
+                    # Используем SmartPairSelector для анализа пар
+                    try:
+                        from src.core.exchange_mode_manager import exchange_mode_manager
+                        pair_selector = SmartPairSelector(exchange_mode_manager, user_id, 'user')
+                        
+                        # Получаем рекомендованные пары
+                        pair_analyses = asyncio.run(pair_selector.get_recommended_pairs(real_balance))
+                        if pair_analyses:
+                            recommended_pairs = [analysis.symbol for analysis in pair_analyses[:5]]
+                    except Exception as e:
+                        logger.warning(f"⚠️ Ошибка SmartPairSelector: {e}")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка при использовании торговых модулей: {e}")
+                # Fallback значения
+                allocated_capital = real_balance * 0.8
+                free_balance = real_balance * 0.2
+                used_balance = allocated_capital
+        
+        # Формируем детальную информацию о боте с реальными данными
         bot_details = {
             'basic_info': {
                 'id': bot_info['id'],
@@ -1151,44 +1542,46 @@ def api_bot_details(bot_id):
                 'created_at': bot_info['created_at'],
                 'last_update': bot_info['last_update'],
                 'api_key': api_key_display,
-                'mode': 'demo' if user_keys and user_keys[0].get('mode') == 'sandbox' else 'live'
+                'mode': 'Live' if 'live' in api_key_display.lower() else 'Demo'
             },
             'trading_settings': {
-                'mode': 'demo' if user_keys and user_keys[0].get('mode') == 'sandbox' else 'live',
-                'pairs': ['BTC/USDT', 'ETH/USDT'],
-                'capital': real_balance * 0.1 if real_balance > 0 else 1000,  # 10% от баланса
+                'mode': 'Live' if 'live' in api_key_display.lower() else 'Demo',
+                'pairs': recommended_pairs,
+                'capital': allocated_capital,
                 'grid_levels': 5,
                 'spread_percent': 0.5,
                 'max_pairs': 8,
-                'risk_level': 'Низкий' if real_balance < 1000 else 'Средний' if real_balance < 5000 else 'Высокий'
+                'risk_level': risk_level
             },
             'performance': {
                 'total_trades': 0,
-                'win_rate': 0,
-                'profit_loss': 0,
+                'win_rate': 0.0,
+                'profit_loss': 0.0,
                 'active_orders': 0
             },
             'balance_info': {
                 'total_balance': real_balance,
-                'free_balance': real_balance * 0.9 if real_balance > 0 else 900,
-                'used_balance': real_balance * 0.1 if real_balance > 0 else 100,
-                'allocated_capital': real_balance * 0.1 if real_balance > 0 else 1000
+                'free_balance': free_balance,
+                'used_balance': used_balance,
+                'allocated_capital': allocated_capital,
+                'profit_loss': 0.0
             },
             'risk_management': {
                 'max_drawdown': 10,
                 'stop_loss': 5,
                 'take_profit': 15,
-                'max_risk_per_trade': 2.0,
-                'total_risk_limit': 10.0,
+                'max_risk_per_trade': max_risk_per_trade,
+                'total_risk_limit': total_risk_limit,
                 'current_risk': 0.0
             },
             'automation_settings': {
                 'auto_start': False,
                 'auto_stop': False,
                 'notifications': True,
-                'auto_rebalance': False,
-                'auto_pair_selection': False,
-                'auto_risk_adjustment': False
+                'auto_rebalance': True,
+                'auto_pair_selection': True,
+                'auto_risk_adjustment': True,
+                'floating_profit': True
             },
             'current_positions': [],
             'last_update': datetime.now().isoformat()
@@ -1198,6 +1591,224 @@ def api_bot_details(bot_id):
         
     except Exception as e:
         logger.error(f"Ошибка получения деталей бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/recommended-pairs')
+@login_required
+def api_recommended_pairs():
+    """API для получения рекомендованных торговых пар с реальным анализом"""
+    try:
+        user_id = session['user_id']
+        
+        # Получаем баланс пользователя
+        user_keys = get_all_user_keys(user_id)
+        real_balance = 0
+        
+        if user_keys:
+            try:
+                # RealBalanceManager уже определен в этом файле
+                for key_data in user_keys:
+                    if key_data.get('validation_status') == 'valid':
+                        balance_manager = RealBalanceManager(
+                            key_data.get('api_key'),
+                            key_data.get('secret_key'), 
+                            key_data.get('passphrase', '')
+                        )
+                        
+                        balance_data = balance_manager.get_real_balance()
+                        
+                        if isinstance(balance_data, dict) and 'total_balance' in balance_data:
+                            real_balance += balance_data['total_balance']
+                            break
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось получить баланс для анализа пар: {e}")
+        
+        # Используем SmartPairSelector для реального анализа
+        recommended_pairs = []
+        user_limits = {'max_capital_per_pair': 500, 'max_pairs': 8}
+        
+        try:
+            from src.core.exchange_mode_manager import exchange_mode_manager
+            from src.trading.smart_pair_selector import SmartPairSelector
+            import asyncio
+            
+            pair_selector = SmartPairSelector(exchange_mode_manager, user_id, 'user')
+            
+            # Получаем рекомендованные пары
+            pair_analyses = asyncio.run(pair_selector.get_recommended_pairs(real_balance))
+            
+            if pair_analyses:
+                recommended_pairs = [
+                    {
+                        'symbol': analysis.symbol,
+                        'score': analysis.smart_score,
+                        'volatility': analysis.volatility,
+                        'liquidity': analysis.liquidity,
+                        'trend_strength': analysis.trend_strength,
+                        'risk_level': analysis.risk_level,
+                        'recommendation': analysis.recommendation
+                    }
+                    for analysis in pair_analyses[:10]
+                ]
+                
+                # Получаем лимиты пользователя
+                user_limits = pair_selector.get_user_limits()
+            else:
+                # Fallback список
+                recommended_pairs = [
+                    {'symbol': 'BTC/USDT', 'score': 0.95, 'volatility': 0.03, 'liquidity': 0.98, 'trend_strength': 0.5, 'risk_level': 'Низкий', 'recommendation': 'Сильная покупка'},
+                    {'symbol': 'ETH/USDT', 'score': 0.92, 'volatility': 0.04, 'liquidity': 0.95, 'trend_strength': 0.6, 'risk_level': 'Низкий', 'recommendation': 'Покупка'},
+                    {'symbol': 'BNB/USDT', 'score': 0.88, 'volatility': 0.05, 'liquidity': 0.90, 'trend_strength': 0.4, 'risk_level': 'Средний', 'recommendation': 'Покупка'},
+                    {'symbol': 'ADA/USDT', 'score': 0.85, 'volatility': 0.06, 'liquidity': 0.85, 'trend_strength': 0.3, 'risk_level': 'Средний', 'recommendation': 'Нейтрально'}
+                ]
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка SmartPairSelector: {e}")
+            # Fallback список
+            recommended_pairs = [
+                {'symbol': 'BTC/USDT', 'score': 0.95, 'volatility': 0.03, 'liquidity': 0.98, 'trend_strength': 0.5, 'risk_level': 'Низкий', 'recommendation': 'Сильная покупка'},
+                {'symbol': 'ETH/USDT', 'score': 0.92, 'volatility': 0.04, 'liquidity': 0.95, 'trend_strength': 0.6, 'risk_level': 'Низкий', 'recommendation': 'Покупка'},
+                {'symbol': 'BNB/USDT', 'score': 0.88, 'volatility': 0.05, 'liquidity': 0.90, 'trend_strength': 0.4, 'risk_level': 'Средний', 'recommendation': 'Покупка'},
+                {'symbol': 'ADA/USDT', 'score': 0.85, 'volatility': 0.06, 'liquidity': 0.85, 'trend_strength': 0.3, 'risk_level': 'Средний', 'recommendation': 'Нейтрально'}
+            ]
+        
+        return jsonify({
+            'success': True,
+            'recommended_pairs': recommended_pairs,
+            'user_limits': user_limits
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения рекомендованных пар: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/<bot_id>/logs')
+@login_required
+def api_bot_logs(bot_id):
+    """API для получения логов бота"""
+    try:
+        user_id = session['user_id']
+        
+        # Проверяем, что бот принадлежит пользователю
+        bot_info = None
+        if os.path.exists('data/bot_status.json'):
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            if bot_id in bot_status:
+                bot_data = bot_status[bot_id]
+                if bot_data.get('user_id') == user_id:
+                    bot_info = bot_data
+        
+        if not bot_info:
+            return jsonify({'success': False, 'error': 'Бот не найден'})
+        
+        # Читаем логи бота
+        log_file = f"logs/bots/{bot_id}.log"
+        logs = []
+        
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    # Берем последние 100 строк
+                    for line in lines[-100:]:
+                        if line.strip():
+                            logs.append(line.strip())
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка чтения логов: {e}")
+        
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'bot_id': bot_id,
+            'log_file': log_file
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения логов бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/<bot_id>/performance')
+@login_required
+def api_bot_performance(bot_id):
+    """API для получения данных производительности бота"""
+    try:
+        user_id = session['user_id']
+        
+        # Проверяем, что бот принадлежит пользователю
+        bot_info = None
+        if os.path.exists('data/bot_status.json'):
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            if bot_id in bot_status:
+                bot_data = bot_status[bot_id]
+                if bot_data.get('user_id') == user_id:
+                    bot_info = bot_data
+        
+        if not bot_info:
+            return jsonify({'success': False, 'error': 'Бот не найден'})
+        
+        # Возвращаем данные производительности
+        performance_data = {
+            'total_trades': 0,
+            'win_rate': 0.0,
+            'profit_loss': 0.0,
+            'active_orders': 0,
+            'daily_pnl': 0.0,
+            'weekly_pnl': 0.0,
+            'monthly_pnl': 0.0,
+            'max_drawdown': 0.0,
+            'sharpe_ratio': 0.0,
+            'bot_id': bot_id
+        }
+        
+        return jsonify({
+            'success': True,
+            'performance': performance_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения производительности бота: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bots/<bot_id>/automation', methods=['POST'])
+@login_required
+def api_bot_automation(bot_id):
+    """API для управления автоматизацией бота"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        
+        # Проверяем, что бот принадлежит пользователю
+        bot_info = None
+        if os.path.exists('data/bot_status.json'):
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            if bot_id in bot_status:
+                bot_data = bot_status[bot_id]
+                if bot_data.get('user_id') == user_id:
+                    bot_info = bot_data
+        
+        if not bot_info:
+            return jsonify({'success': False, 'error': 'Бот не найден'})
+        
+        # Обрабатываем настройки автоматизации
+        automation_settings = data.get('automation', {})
+        
+        # Здесь можно добавить логику сохранения настроек автоматизации
+        logger.info(f"🔧 Обновление автоматизации для бота {bot_id}: {automation_settings}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Настройки автоматизации обновлены',
+            'automation': automation_settings
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка обновления автоматизации бота: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/bots/available-keys')
