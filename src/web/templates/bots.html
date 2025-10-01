@@ -48,6 +48,7 @@
                         </div>
                     </div>
                     
+                    
                     <div class="row">
     <div class="col-12">
         <div class="card">
@@ -292,9 +293,46 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-info" onclick="showConsoleOutput()">
+                    <i class="fas fa-terminal"></i> Консоль
+                </button>
                 <button type="button" class="btn btn-primary" onclick="refreshBotDetails()">
                     <i class="fas fa-sync"></i> Обновить
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для консольного вывода -->
+<div class="modal fade" id="consoleModal" tabindex="-1" aria-labelledby="consoleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="consoleModalLabel">
+                    <i class="fas fa-terminal"></i> Консольный вывод бота
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="console-container" style="height: 500px; overflow-y: auto; background-color: #1e1e1e; color: #00ff00; font-family: 'Courier New', monospace; padding: 15px;">
+                    <div id="consoleOutput">
+                        <div class="console-line">🚀 Инициализация консоли...</div>
+                        <div class="console-line">📡 Подключение к боту...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-dark">
+                <button type="button" class="btn btn-success" onclick="startConsoleMonitoring()">
+                    <i class="fas fa-play"></i> Начать мониторинг
+                </button>
+                <button type="button" class="btn btn-warning" onclick="pauseConsoleMonitoring()">
+                    <i class="fas fa-pause"></i> Пауза
+                </button>
+                <button type="button" class="btn btn-danger" onclick="clearConsole()">
+                    <i class="fas fa-trash"></i> Очистить
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
             </div>
         </div>
     </div>
@@ -307,7 +345,21 @@ window.createBot = function(botType) {
     
     try {
         document.getElementById('botType').value = botType;
-        document.getElementById('createBotModalTitle').textContent = `Создание ${botType === 'grid' ? 'Grid' : 'Scalp'} бота`;
+        
+        // Определяем название бота
+        let botName = '';
+        switch(botType) {
+            case 'grid':
+                botName = 'Grid Bot';
+                break;
+            case 'scalp':
+                botName = 'Scalp Bot';
+                break;
+            default:
+                botName = 'Trading Bot';
+        }
+        
+        document.getElementById('createBotModalTitle').textContent = `Создание ${botName}`;
         
         // Загружаем доступные API ключи
         loadAvailableApiKeys();
@@ -1289,6 +1341,71 @@ function refreshBotDetails() {
     const modalTitle = document.getElementById('botDetailsModalLabel').textContent;
     const botId = modalTitle.split(' ').pop();
     loadBotDetailsData(botId);
+}
+
+function showBotInfo(botType) {
+    let title, description, features;
+    
+    if (botType === 'grid') {
+        title = 'Grid Trading Bot';
+        description = 'Сеточная торговля с автоматическим размещением ордеров на разных уровнях цены';
+        features = [
+            'Автоматическое размещение ордеров на покупку и продажу',
+            'Адаптивные сетки в зависимости от волатильности',
+            'Управление рисками с помощью стоп-лоссов',
+            'Поддержка множественных торговых пар',
+            'Мониторинг в реальном времени'
+        ];
+    } else if (botType === 'scalp') {
+        title = 'Scalp Trading Bot';
+        description = 'Быстрая торговля с использованием машинного обучения для поиска краткосрочных возможностей';
+        features = [
+            'ML-сигналы для входа и выхода',
+            'Быстрые сделки с минимальными рисками',
+            'Автоматическая оптимизация параметров',
+            'Анализ рыночных паттернов',
+            'Уведомления о торговых возможностях'
+        ];
+    
+    // Создаем модальное окно с информацией
+    const modalHtml = `
+        <div class="modal fade" id="botInfoModal" tabindex="-1" aria-labelledby="botInfoModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="botInfoModalLabel">${title}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="lead">${description}</p>
+                        <h6>Основные возможности:</h6>
+                        <ul class="list-group list-group-flush">
+                            ${features.map(feature => `<li class="list-group-item">${feature}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" onclick="createBot('${botType}')" data-bs-dismiss="modal">
+                            Создать ${botType === 'grid' ? 'Grid' : 'Scalp'} Bot
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Удаляем старое модальное окно, если есть
+    const existingModal = document.getElementById('botInfoModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Добавляем новое модальное окно
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Показываем модальное окно
+    const modal = new bootstrap.Modal(document.getElementById('botInfoModal'));
+    modal.show();
 }
 
 function forceStopAllBots() {

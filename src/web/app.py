@@ -1081,8 +1081,11 @@ def api_start_bot(bot_id):
                 json.dump(bot_config, f, indent=2, ensure_ascii=False)
             
             # Определяем скрипт для запуска в зависимости от типа бота
-            if bot_info.get('type', '').upper() == 'GRID':
+            bot_type = bot_info.get('type', '').upper()
+            if bot_type == 'GRID':
                 script_path = "src/trading/real_grid_bot_runner.py"
+            elif bot_type == 'SCALP':
+                script_path = "src/trading/enhanced_scalp_bot_runner.py"
             else:
                 script_path = "src/trading/real_grid_bot_runner.py"  # По умолчанию Grid
             
