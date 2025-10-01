@@ -47,3 +47,4 @@ except ImportError as e:
     print(f"❌ log_helper не найден: {e}")
 
 print("\n✅ ОТЛАДКА ЗАВЕРШЕНА!")
+

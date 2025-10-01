@@ -628,9 +628,68 @@ function updateBotsData() {
 // Обновляем данные каждые 10 секунд
 setInterval(updateBotsData, 10000);
 
+// Функция для загрузки баланса на главной странице
+function loadBalance() {
+    console.log('🔄 Загружаем баланс...');
+    
+    const totalBalanceElement = document.getElementById('totalBalance');
+    if (!totalBalanceElement) {
+        console.error('❌ Элемент totalBalance не найден');
+        return;
+    }
+    
+    // Показываем загрузку
+    totalBalanceElement.textContent = 'Загрузка...';
+    totalBalanceElement.className = 'text-muted';
+    
+    fetch('/api/balance')
+        .then(response => {
+            console.log('📡 Ответ сервера:', response.status, response.statusText);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Получены данные баланса:', data);
+            
+            if (data.success && data.balance && data.balance.connected) {
+                let totalBalance = data.balance.total_usdt || 0;
+                let balanceInfo = `$${totalBalance.toFixed(2)}`;
+                
+                // Добавляем информацию о режимах
+                if (data.balance.exchanges && data.balance.exchanges.length > 0) {
+                    const demoExchanges = data.balance.exchanges.filter(ex => ex.mode === 'demo' || ex.mode === 'sandbox');
+                    const liveExchanges = data.balance.exchanges.filter(ex => ex.mode === 'live' || ex.mode === 'real');
+                    
+                    if (demoExchanges.length > 0 && liveExchanges.length > 0) {
+                        const demoBalance = demoExchanges.reduce((sum, ex) => sum + (ex.balance || 0), 0);
+                        const liveBalance = liveExchanges.reduce((sum, ex) => sum + (ex.balance || 0), 0);
+                        balanceInfo = `$${totalBalance.toFixed(2)} (Демо: $${demoBalance.toFixed(2)} + Реал: $${liveBalance.toFixed(2)})`;
+                    } else if (demoExchanges.length > 0) {
+                        balanceInfo += ' (Демо)';
+                    } else if (liveExchanges.length > 0) {
+                        balanceInfo += ' (Реал)';
+                    }
+                }
+                
+                totalBalanceElement.textContent = balanceInfo;
+                totalBalanceElement.className = 'text-success fw-bold';
+                console.log('✅ Баланс обновлен:', balanceInfo);
+            } else {
+                totalBalanceElement.textContent = 'Нет подключенных бирж';
+                totalBalanceElement.className = 'text-muted';
+                console.log('⚠️ Нет подключенных бирж');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Ошибка загрузки баланса:', error);
+            totalBalanceElement.textContent = 'Ошибка загрузки';
+            totalBalanceElement.className = 'text-danger';
+        });
+}
+
 // Первоначальная загрузка данных
 document.addEventListener('DOMContentLoaded', function() {
     updateBotsData();
+    loadBalance();
 });
 
 function createSuperAdmin() {

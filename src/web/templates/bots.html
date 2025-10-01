@@ -223,6 +223,13 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-info" onclick="showConsoleOutput()">
+                    <i class="fas fa-terminal"></i> Консоль
+                </button>
+                <button type="button" class="btn btn-primary" onclick="refreshBotDetails()">
+                    <i class="fas fa-sync"></i> Обновить
+                </button>
+            </div>
                 <button type="button" class="btn btn-primary" onclick="refreshBotDetails()">
                     <i class="fas fa-sync-alt"></i> Обновить
                         </button>
@@ -263,6 +270,13 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-info" onclick="showConsoleOutput()">
+                    <i class="fas fa-terminal"></i> Консоль
+                </button>
+                <button type="button" class="btn btn-primary" onclick="refreshBotDetails()">
+                    <i class="fas fa-sync"></i> Обновить
+                </button>
+            </div>
                 <button type="button" class="btn btn-primary" onclick="addSelectedPairs()">
                     <i class="fas fa-plus"></i> Добавить выбранные
                         </button>
@@ -293,6 +307,13 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-info" onclick="showConsoleOutput()">
+                    <i class="fas fa-terminal"></i> Консоль
+                </button>
+                <button type="button" class="btn btn-primary" onclick="refreshBotDetails()">
+                    <i class="fas fa-sync"></i> Обновить
+                </button>
+            </div>
                 <button type="button" class="btn btn-info" onclick="showConsoleOutput()">
                     <i class="fas fa-terminal"></i> Консоль
                 </button>
@@ -667,19 +688,16 @@ function updateBotsList(bots) {
                             <small class="text-muted">${bot.created_at ? new Date(bot.created_at).toLocaleDateString() : 'Неизвестно'}</small>
                         </div>
                         <div class="col-md-3">
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button class="btn btn-outline-success" onclick="startBot('${bot.id}')" ${bot.status === 'running' ? 'disabled' : ''}>
-                                    <i class="fas fa-play"></i>
-                                </button>
-                                <button class="btn btn-outline-danger" onclick="stopBot('${bot.id}')" ${bot.status === 'stopped' ? 'disabled' : ''}>
-                                    <i class="fas fa-stop"></i>
-                                </button>
-                                <button class="btn btn-outline-info" onclick="loadBotDetails('${bot.id}')">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                                <button class="btn btn-outline-danger" onclick="deleteBot('${bot.id}')">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-sm btn-info" onclick="showBotDetails('${bot.id}')">
+                                    <i class="fas fa-info-circle"></i> Детали
+                        </button>
+                                {% if bot.status == 'running' %}
+                                    <button class="btn btn-sm btn-warning" onclick="stopBot('${bot.id}')">Остановить</button>
+                                {% else %}
+                                    <button class="btn btn-sm btn-success" onclick="startBot('${bot.id}')">Запустить</button>
+                                {% endif %}
+                                <button class="btn btn-sm btn-danger" onclick="deleteBot('${bot.id}')">Удалить</button>
                             </div>
                         </div>
                     </div>
@@ -733,58 +751,6 @@ function refreshBots() {
     });
 }
 
-// Функция для открытия модального окна с деталями бота
-function loadBotDetails(botId) {
-    console.log('Загрузка деталей бота:', botId);
-    
-    try {
-        // Проверяем, что элемент существует
-        const modalElement = document.getElementById('botDetailsModal');
-        if (!modalElement) {
-            console.error('Элемент botDetailsModal не найден!');
-            alert('Ошибка: модальное окно не найдено в DOM');
-            return;
-        }
-        
-        console.log('Элемент botDetailsModal найден:', modalElement);
-        
-        // Устанавливаем заголовок СРАЗУ
-        const titleElement = document.getElementById('botDetailsModalLabel');
-        if (titleElement) {
-            titleElement.innerHTML = `<i class="fas fa-robot"></i> Детали бота ${botId}`;
-        }
-        
-        // Принудительно открываем модальное окно через CSS (самый надежный способ)
-        console.log('🔧 Принудительно открываем модальное окно...');
-        
-        modalElement.style.display = 'block';
-        modalElement.classList.add('show');
-        modalElement.classList.add('d-block');
-        modalElement.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('modal-open');
-        
-        // Добавляем backdrop
-        let backdrop = document.getElementById('modal-backdrop-custom');
-        if (!backdrop) {
-            backdrop = document.createElement('div');
-            backdrop.className = 'modal-backdrop fade show';
-            backdrop.id = 'modal-backdrop-custom';
-            document.body.appendChild(backdrop);
-        }
-        
-        console.log('✅ Модальное окно принудительно открыто через CSS');
-        console.log('🔍 Проверяем классы после открытия:', modalElement.className);
-        console.log('🔍 Проверяем стиль display:', modalElement.style.display);
-        
-        // ПОТОМ загружаем данные
-        loadBotDetailsData(botId);
-        
-    } catch (error) {
-        console.error('Критическая ошибка в loadBotDetails:', error);
-        alert('Ошибка открытия модального окна: ' + error.message);
-    }
-}
-
 // Функция для загрузки данных бота
 function loadBotDetailsData(botId) {
     const content = document.getElementById('botDetailsContent');
@@ -801,8 +767,16 @@ function loadBotDetailsData(botId) {
     
     // Загружаем данные параллельно
     Promise.all([
-        fetch(`/api/bots/${botId}/details`).then(response => response.json()),
-        fetch(`/api/bots/${botId}/logs`).then(response => response.json()).catch(() => ({ success: false, logs: [] }))
+        fetch(`/api/bots/${botId}/details`, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' }
+        }).then(response => response.json()),
+        fetch(`/api/bots/${botId}/logs`, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' }
+        }).then(response => response.json()).catch(() => ({ success: false, logs: [] }))
     ])
     .then(([detailsData, logsData]) => {
         console.log('Получены данные от API:', detailsData);
@@ -845,7 +819,6 @@ function loadBotDetailsData(botId) {
             </div>
         `;
     });
-}
 
 // Функция для отображения деталей бота
 function renderBotDetails(bot, charts, metrics, logs) {
@@ -1408,6 +1381,106 @@ function showBotInfo(botType) {
     modal.show();
 }
 
+// Переменные для консольного мониторинга
+let consoleMonitoring = false;
+let consoleInterval = null;
+// Глобальный идентификатор текущего бота для модального окна
+window.currentBotId = null;
+
+function showConsoleOutput() {
+    if (!currentBotId) {
+        showAlert('warning', 'Сначала выберите бота для просмотра консоли');
+        return;
+    }
+    
+    // Показываем модальное окно консоли
+    const modal = new bootstrap.Modal(document.getElementById('consoleModal'));
+    modal.show();
+    
+    // Обновляем заголовок
+    document.getElementById('consoleModalLabel').innerHTML = 
+        `<i class="fas fa-terminal"></i> Консольный вывод бота ${currentBotId}`;
+    
+    // Очищаем консоль
+    clearConsole();
+}
+
+function startConsoleMonitoring() {
+    if (consoleMonitoring) {
+        showAlert('info', 'Мониторинг уже запущен');
+        return;
+    }
+    
+    consoleMonitoring = true;
+    addConsoleLine('🟢 Мониторинг запущен...', 'success');
+    
+    // Запускаем мониторинг каждые 2 секунды
+    consoleInterval = setInterval(() => {
+        fetchConsoleLogs();
+    }, 2000);
+}
+
+function pauseConsoleMonitoring() {
+    if (!consoleMonitoring) {
+        showAlert('info', 'Мониторинг не запущен');
+        return;
+    }
+    
+    consoleMonitoring = false;
+    if (consoleInterval) {
+        clearInterval(consoleInterval);
+        consoleInterval = null;
+    }
+    addConsoleLine('🟡 Мониторинг приостановлен', 'warning');
+}
+
+function clearConsole() {
+    document.getElementById('consoleOutput').innerHTML = '';
+    addConsoleLine('🧹 Консоль очищена', 'info');
+}
+
+function addConsoleLine(text, type = 'info') {
+    const consoleOutput = document.getElementById('consoleOutput');
+    const timestamp = new Date().toLocaleTimeString();
+    
+    let colorClass = '';
+    switch(type) {
+        case 'success': colorClass = 'text-success'; break;
+        case 'warning': colorClass = 'text-warning'; break;
+        case 'error': colorClass = 'text-danger'; break;
+        case 'info': colorClass = 'text-info'; break;
+        default: colorClass = 'text-light';
+    }
+    
+    const line = document.createElement('div');
+    line.className = `console-line ${colorClass}`;
+    line.innerHTML = `[${timestamp}] ${text}`;
+    
+    consoleOutput.appendChild(line);
+    
+    // Автопрокрутка вниз
+    const container = consoleOutput.parentElement;
+    container.scrollTop = container.scrollHeight;
+}
+
+function fetchConsoleLogs() {
+    if (!currentBotId) return;
+    
+    fetch(`/api/bots/${currentBotId}/logs/live`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.logs) {
+                // Добавляем только новые записи
+                data.logs.forEach(log => {
+                    addConsoleLine(log, 'info');
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка получения логов:', error);
+        });
+}
+
 function forceStopAllBots() {
     if (!confirm('⚠️ ВНИМАНИЕ!\n\nВы собираетесь принудительно остановить ВСЕ боты.\n\nЭто действие:\n• Немедленно остановит все запущенные боты\n• Может привести к потере незавершенных сделок\n• Нельзя отменить\n\nПродолжить?')) {
         return;
@@ -1497,7 +1570,284 @@ refreshInterval = setInterval(refreshBots, 30000);
 let isModalOpen = false;
 
 // Отслеживаем открытие/закрытие модального окна
+// Функция для загрузки данных ботов
+function updateBotsData() {
+    console.log('🔄 Загружаем данные ботов...');
+    
+    fetch('/api/bots/status', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+        .then(response => {
+            console.log('📊 Статус ответа:', response.status);
+            if (response.status === 302) {
+                console.log('❌ Перенаправление на страницу входа');
+                window.location.href = '/login';
+                return;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.bots) {
+                console.log('✅ Найдено ботов:', data.bots.length);
+                renderBotsList(data.bots);
+            } else {
+                console.log('❌ Нет данных о ботах');
+                renderBotsList([]);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Ошибка загрузки ботов:', error);
+            renderBotsList([]);
+        });
+}
+
+// Функция для отображения списка ботов
+function renderBotsList(bots) {
+    const botsContainer = document.getElementById('botsContainer');
+    if (!botsContainer) {
+        console.log('❌ Контейнер ботов не найден');
+        return;
+    }
+    
+    if (bots.length === 0) {
+        botsContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-robot fa-3x mb-3"></i>
+                    <h4>Нет ботов</h4>
+                    <p>Создайте своего первого бота для начала торговли</p>
+                    <button class="btn btn-primary" onclick="showCreateBotModal()">
+                        <i class="fas fa-plus"></i> Создать бота
+                    </button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    bots.forEach(bot => {
+        const statusClass = bot.status === 'running' ? 'success' : 
+                           bot.status === 'stopped' ? 'danger' : 'warning';
+        const statusText = bot.status === 'running' ? 'Запущен' : 
+                          bot.status === 'stopped' ? 'Остановлен' : 'Создан';
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">${bot.name}</h5>
+                        <span class="badge bg-${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">
+                            <strong>Тип:</strong> ${bot.type === 'grid' ? 'Grid Bot' : 'Scalp Bot'}<br>
+                            <strong>ID:</strong> ${bot.id}<br>
+                            <strong>Статус:</strong> ${bot.status}
+                        </p>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-outline-primary btn-sm" onclick="showBotDetails('${bot.id}')">
+                                <i class="fas fa-info-circle"></i> Детали
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" onclick="startBot('${bot.id}')">
+                                <i class="fas fa-play"></i> Запустить
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="stopBot('${bot.id}')">
+                                <i class="fas fa-stop"></i> Остановить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    botsContainer.innerHTML = html;
+    console.log('✅ Список ботов обновлен');
+}
+
+// Функции для работы с ботами
+function showBotDetails(botId) {
+    console.log('🔍 Показываем детали бота:', botId);
+    currentBotId = botId;
+    loadBotDetails(botId);
+    const modal = new bootstrap.Modal(document.getElementById('botDetailsModal'));
+    modal.show();
+}
+
+function startBot(botId) {
+    console.log('🚀 Запускаем бота:', botId);
+    fetch(`/api/bots/${botId}/start`, { 
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('✅ Бот запущен');
+                updateBotsData(); // Обновляем список
+            } else {
+                console.error('❌ Ошибка запуска:', data.error);
+                alert('Ошибка запуска бота: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Ошибка:', error);
+            alert('Ошибка запуска бота');
+        });
+}
+
+function stopBot(botId) {
+    console.log('⏹️ Останавливаем бота:', botId);
+    fetch(`/api/bots/${botId}/stop`, { 
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('✅ Бот остановлен');
+                updateBotsData(); // Обновляем список
+            } else {
+                console.error('❌ Ошибка остановки:', data.error);
+                alert('Ошибка остановки бота: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Ошибка:', error);
+            alert('Ошибка остановки бота');
+        });
+}
+
+function showCreateBotModal() {
+    console.log('➕ Показываем модальное окно создания бота');
+    const modal = new bootstrap.Modal(document.getElementById('createBotModal'));
+    modal.show();
+}
+
+// Добавляем недостающие функции
+function createBot() {
+    console.log('🤖 Создаем бота...');
+    const form = document.getElementById('createBotForm');
+    const formData = new FormData(form);
+    
+    const botData = {
+        name: formData.get('botName'),
+        type: formData.get('botType'),
+        risk_level: formData.get('riskLevel'),
+        auto_rebalance: formData.get('autoRebalance') === 'on'
+    };
+    
+    fetch('/api/bots/create', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(botData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Бот создан:', data.bot_id);
+            updateBotsData(); // Обновляем список
+            bootstrap.Modal.getInstance(document.getElementById('createBotModal')).hide();
+            showAlert('success', 'Бот успешно создан!');
+        } else {
+            console.error('❌ Ошибка создания:', data.error);
+            showAlert('danger', 'Ошибка создания бота: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Ошибка:', error);
+        showAlert('danger', 'Ошибка создания бота');
+    });
+}
+
+function refreshBots() {
+    console.log('🔄 Обновляем список ботов...');
+    updateBotsData();
+}
+
+function showBotInfo(botType) {
+    console.log('ℹ️ Показываем информацию о боте:', botType);
+    
+    const modal = new bootstrap.Modal(document.getElementById('botInfoModal'));
+    const modalTitle = document.getElementById('botInfoModalLabel');
+    const modalBody = document.getElementById('botInfoModalBody');
+    
+    if (modalTitle && modalBody) {
+        modalTitle.textContent = botType === 'grid' ? 'Grid Bot' : 'Scalp Bot';
+        
+        const info = botType === 'grid' ? 
+            `<h5>Grid Bot - Сеточная торговая стратегия</h5>
+            <p><strong>Описание:</strong> Автоматическая торговля по сетке ордеров</p>
+            <p><strong>Преимущества:</strong> Стабильный доход в боковом рынке</p>
+            <p><strong>Риски:</strong> Низкие при правильной настройке</p>
+            <p><strong>Рекомендуется для:</strong> Начинающих трейдеров</p>` :
+            `<h5>Scalp Bot - Скальпинговая стратегия</h5>
+            <p><strong>Описание:</strong> Быстрые сделки на коротких движениях</p>
+            <p><strong>Преимущества:</strong> Высокая частота сделок</p>
+            <p><strong>Риски:</strong> Средние, требует внимательного мониторинга</p>
+            <p><strong>Рекомендуется для:</strong> Опытных трейдеров</p>`;
+        
+        modalBody.innerHTML = info;
+    }
+    
+    modal.show();
+}
+
+function forceStopAllBots() {
+    console.log('⏹️ Принудительная остановка всех ботов...');
+    
+    if (confirm('Вы уверены, что хотите остановить все боты?')) {
+        fetch('/api/bots/force-stop-all', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('✅ Все боты остановлены');
+                updateBotsData();
+                showAlert('success', 'Все боты успешно остановлены');
+            } else {
+                console.error('❌ Ошибка остановки:', data.error);
+                showAlert('danger', 'Ошибка остановки ботов: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Ошибка:', error);
+            showAlert('danger', 'Ошибка остановки ботов');
+        });
+    }
+}
+
+function showCreateBotModal() {
+    console.log('➕ Показываем модальное окно создания бота');
+    const modal = new bootstrap.Modal(document.getElementById('createBotModal'));
+    modal.show();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Загружаем данные ботов при загрузке страницы
+    updateBotsData();
+    
     const modal = document.getElementById('botDetailsModal');
     if (modal) {
         modal.addEventListener('show.bs.modal', function() {
@@ -1540,16 +1890,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Переменная для хранения текущего bot_id в модальном окне
-let currentBotId = null;
+// Удалено дублирующее объявление currentBotId (используем window.currentBotId)
 
 function showBotDetails(botId) {
     console.log('DEBUG: showBotDetails called with botId:', botId);
-    currentBotId = botId;
-    document.getElementById('botDetailsModalTitle').textContent = `Детали бота ${botId}`;
+    currentBotId = botId;  // Устанавливаем currentBotId для консоли
     
     // Показываем модальное окно
     const modal = new bootstrap.Modal(document.getElementById('botDetailsModal'));
     modal.show();
+    
+    // Обновляем заголовок
+    document.getElementById('botDetailsModalTitle').textContent = `Детали бота ${botId}`;
     
     // Загружаем детальную информацию
     loadBotDetails(botId);
@@ -1601,20 +1953,8 @@ function loadBotDetails(botId) {
             `;
         });
 }
-                    
-function renderBotDetailsOld(botDetails) {
-    console.log('DEBUG: renderBotDetailsOld called with:', botDetails);
-    // Проверяем, что у нас есть необходимые данные
-    if (!botDetails) {
-        document.getElementById('botDetailsContent').innerHTML = `
-            <div class="alert alert-danger">
-                <h5>Ошибка данных</h5>
-                <p>Не удалось получить данные о боте.</p>
-                    </div>
-        `;
-        return;
-    }
-                    
+
+function renderBotDetails(botDetails) {
     const content = `
         <!-- Заголовок с основной информацией -->
     <div class="row mb-4">
