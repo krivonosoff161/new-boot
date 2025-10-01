@@ -1673,13 +1673,7 @@ function renderBotsList(bots) {
 }
 
 // Функции для работы с ботами
-function showBotDetails(botId) {
-    console.log('🔍 Показываем детали бота:', botId);
-    currentBotId = botId;
-    loadBotDetails(botId);
-    const modal = new bootstrap.Modal(document.getElementById('botDetailsModal'));
-    modal.show();
-}
+// Удален дубликат showBotDetails. См. корректную версию ниже.
 
 function startBot(botId) {
     console.log('🚀 Запускаем бота:', botId);
@@ -3862,5 +3856,9 @@ function refreshMarketAnalysis() {
         createMarketAnalysisChart();
     }, 300);
 }
+// Подключаем резервные глобальные функции (если основные уже определены — они останутся приоритетными)
+}
+}
 </script>
+<script src="{{ url_for('static', filename='js/bots.js') }}"></script>
 {% endblock %}
