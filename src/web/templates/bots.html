@@ -69,58 +69,12 @@
                         </div>
             <div class="card-body">
                 <div id="bots-list">
-                    {% if bots %}
-                        {% for bot in bots %}
-                        <div class="card mb-3" id="bot-{{ bot.bot_id }}">
-                            <div class="card-body">
-                                <div class="row align-items-center">
-                                    <div class="col-md-3">
-                                        <h6>{{ '🎯 Grid Bot' if bot.type == 'grid' else '⚡ Scalp Bot' }}</h6>
-                                        <small class="text-muted">ID: {{ bot.bot_id }}</small>
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Загружаем список ботов...</p>
                     </div>
-                                    <div class="col-md-2">
-                                        <span class="badge bg-{{ 'success' if bot.status == 'running' else 'secondary' }}">
-                                            {{ 'Запущен' if bot.status == 'running' else 'Остановлен' }}
-                                        </span>
-                                        {% if bot.mode %}
-                                        <br><small class="badge bg-{{ 'warning' if bot.mode == 'demo' else 'danger' }}">
-                                            {{ 'Демо' if bot.mode == 'demo' else 'Реальный' }}
-                                        </small>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-md-2">
-                                        <small class="text-muted">
-                                            Создан: {{ bot.created_at[:10] if bot.created_at else 'Неизвестно' }}
-                                        </small>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <small class="text-muted">
-                                            PID: {{ bot.pid if bot.pid else 'Н/Д' }}
-                                        </small>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="btn-group" role="group">
-                                            <button class="btn btn-sm btn-info" onclick="showBotDetails('{{ bot.bot_id }}')">
-                                                <i class="fas fa-info-circle"></i> Детали
-                        </button>
-                                            {% if bot.status == 'running' %}
-                                                <button class="btn btn-sm btn-warning" onclick="stopBot('{{ bot.bot_id }}')">Остановить</button>
-                                            {% else %}
-                                                <button class="btn btn-sm btn-success" onclick="startBot('{{ bot.bot_id }}')">Запустить</button>
-                                            {% endif %}
-                                            <button class="btn btn-sm btn-danger" onclick="deleteBot('{{ bot.bot_id }}')">Удалить</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="text-center py-4">
-                            <p class="text-muted">У вас пока нет созданных ботов</p>
-                            <p class="text-muted">Создайте свой первый бот выше!</p>
-                        </div>
-                    {% endif %}
                 </div>
                     </div>
                 </div>
@@ -633,6 +587,7 @@ function deleteBot(botId) {
 }
 
 function updateBotsList(bots) {
+    console.log('🔄 updateBotsList вызвана с ботами:', bots);
     // Обновление списка ботов в DOM
     const botsList = document.getElementById('bots-list');
     
@@ -692,11 +647,7 @@ function updateBotsList(bots) {
                                 <button class="btn btn-sm btn-info" onclick="showBotDetails('${bot.id}')">
                                     <i class="fas fa-info-circle"></i> Детали
                         </button>
-                                {% if bot.status == 'running' %}
-                                    <button class="btn btn-sm btn-warning" onclick="stopBot('${bot.id}')">Остановить</button>
-                                {% else %}
-                                    <button class="btn btn-sm btn-success" onclick="startBot('${bot.id}')">Запустить</button>
-                                {% endif %}
+                                <button class="btn btn-sm btn-success" onclick="startBot('${bot.id}')">Запустить</button>
                                 <button class="btn btn-sm btn-danger" onclick="deleteBot('${bot.id}')">Удалить</button>
                             </div>
                         </div>
@@ -821,50 +772,50 @@ function loadBotDetailsData(botId) {
     });
 
 // Функция для отображения деталей бота
-function renderBotDetails(bot, charts, metrics, logs) {
-    console.log('Функция renderBotDetails вызвана с данными:', bot);
+function renderBotDetails(botData, charts, metrics, logs) {
+    console.log('Функция renderBotDetails вызвана с данными:', botData);
     
     const content = document.getElementById('botDetailsContent');
     
     // Безопасная обработка данных
     const safeBot = {
-        basic_info: bot.basic_info || {
-            name: bot.bot_name || bot.name || 'Неизвестный бот',
-            type: bot.bot_type || bot.type || 'grid',
-            status: bot.status || 'unknown',
-            mode: bot.mode || 'demo',
-            api_key_id: bot.api_key_id || 'Не указан',
-            created_at: bot.created_at || new Date().toISOString(),
-            id: bot.bot_id || bot.id || 'unknown'
+        basic_info: botData.basic_info || {
+            name: botData.bot_name || botData.name || 'Неизвестный бот',
+            type: botData.bot_type || botData.type || 'grid',
+            status: botData.status || 'unknown',
+            mode: botData.mode || 'demo',
+            api_key_id: botData.api_key_id || 'Не указан',
+            created_at: botData.created_at || new Date().toISOString(),
+            id: botData.bot_id || botData.id || 'unknown'
         },
-        trading_settings: bot.trading_settings || {
+        trading_settings: botData.trading_settings || {
             capital: 1000,
             risk_level: 'medium',
             max_pairs: 8
         },
-        performance: bot.performance || {
+        performance: botData.performance || {
             total_trades: 0,
             win_rate: 0,
             profit_loss: 0
         },
-        balance_info: bot.balance_info || {
+        balance_info: botData.balance_info || {
             allocated_capital: 1000,
             available_capital: 1000,
             used_capital: 0,
             profit_loss: 0
         },
-        risk_management: bot.risk_management || {
+        risk_management: botData.risk_management || {
             max_risk_per_trade: 2.0,
             total_risk_limit: 10.0,
             current_risk: 0.0
         },
-        automation_settings: bot.automation_settings || {
+        automation_settings: botData.automation_settings || {
             auto_rebalance: true,
             auto_pair_selection: true,
             auto_risk_adjustment: true,
             capital_distribution_mode: 'smart'
         },
-        trading_pairs: bot.trading_pairs || ['BTC/USDT']
+        trading_pairs: botData.trading_pairs || ['BTC/USDT']
     };
     
     console.log('Безопасные данные бота:', safeBot);
@@ -1607,9 +1558,10 @@ function updateBotsData() {
 
 // Функция для отображения списка ботов
 function renderBotsList(bots) {
-    const botsContainer = document.getElementById('botsContainer');
+    console.log('🔄 renderBotsList вызвана с ботами:', bots);
+    const botsContainer = document.getElementById('bots-list');
     if (!botsContainer) {
-        console.log('❌ Контейнер ботов не найден');
+        console.log('❌ Контейнер bots-list не найден');
         return;
     }
     
@@ -1669,7 +1621,7 @@ function renderBotsList(bots) {
     });
     
     botsContainer.innerHTML = html;
-    console.log('✅ Список ботов обновлен');
+    console.log('✅ Список ботов обновлен - отображено ботов:', bots.length);
 }
 
 // Функции для работы с ботами

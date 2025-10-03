@@ -206,14 +206,14 @@ def api_bots_status():
                 bots_status = json.load(f)
                 for bot_id, status in bots_status.items():
                     try:
-                        bots_data.append({
-                            'id': bot_id,
+                    bots_data.append({
+                        'id': bot_id,
                             'status': status.get('status', 'unknown'),
-                            'bot_type': status.get('bot_type', 'unknown'),
+                        'bot_type': status.get('bot_type', 'unknown'),
                             'created_at': status.get('created_at', ''),
                             'last_update': status.get('last_update', '')
                         })
-                    except:
+                                except:
                         pass
         except:
             pass

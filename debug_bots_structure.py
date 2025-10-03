@@ -53,3 +53,5 @@ def debug_bots_structure():
 if __name__ == "__main__":
     debug_bots_structure()
 
+
+

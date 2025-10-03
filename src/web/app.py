@@ -1268,6 +1268,54 @@ def api_stop_bot(bot_id):
         print(f"❌ Ошибка остановки бота: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/bots/force-stop-all', methods=['POST'])
+@login_required
+def api_force_stop_all_bots():
+    """API для принудительной остановки всех ботов"""
+    try:
+        user_id = session['user_id']
+        stopped_count = 0
+        
+        # Читаем статус ботов
+        if os.path.exists('data/bot_status.json'):
+            with open('data/bot_status.json', 'r') as f:
+                bot_status = json.load(f)
+            
+            # Останавливаем все боты пользователя
+            for bot_id, bot_data in bot_status.items():
+                if bot_data.get('user_id') == user_id and bot_data.get('status') == 'running':
+                    # Останавливаем процесс если есть PID
+                    if 'pid' in bot_data:
+                        try:
+                            if os.name == 'nt':  # Windows
+                                subprocess.run(['taskkill', '/F', '/PID', str(bot_data['pid'])], 
+                                             capture_output=True, text=True)
+                            else:  # Unix-like
+                                os.kill(bot_data['pid'], 9)
+                            logger.info(f"⏹️ Процесс {bot_data['pid']} остановлен")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Не удалось остановить процесс {bot_data['pid']}: {e}")
+                    
+                    # Обновляем статус
+                    bot_status[bot_id]['status'] = 'stopped'
+                    if 'pid' in bot_status[bot_id]:
+                        del bot_status[bot_id]['pid']
+                    stopped_count += 1
+            
+            # Сохраняем обновленный статус
+            with open('data/bot_status.json', 'w') as f:
+                json.dump(bot_status, f, indent=2)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Остановлено ботов: {stopped_count}',
+            'stopped_count': stopped_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка принудительной остановки ботов: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/bots/processes')
 @login_required
 def api_bot_processes():
