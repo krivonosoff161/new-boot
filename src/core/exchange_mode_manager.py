@@ -31,7 +31,7 @@ class ExchangeModeManager:
         self.modes = self._load_modes()
         self._ensure_config_exists()
         
-        logger.info("✅ Exchange Mode Manager инициализирован")
+        logger.info("Exchange Mode Manager initialized")
     
     def _ensure_config_exists(self):
         """Создание файла конфигурации если его нет"""

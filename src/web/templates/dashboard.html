@@ -109,7 +109,7 @@
                             <small class="text-muted">
                                 <i class="fas fa-info-circle"></i> 
                                 <a href="#" onclick="showAllExchanges()" class="text-decoration-none" style="color: #6c757d !important;">
-                                    И еще 5+ бирж поддерживается через CCXT
+                                И еще 5+ бирж поддерживается через CCXT
                                 </a>
                             </small>
                         </div>
@@ -135,13 +135,13 @@
                                 {% endfor %}
                             </div>
                         {% else %}
-                            <div class="alert alert-warning">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <strong>Внимание!</strong> Для начала торговли необходимо настроить API ключи.
-                            </div>
-                            <a href="/api-keys" class="btn btn-warning btn-lg">
-                                <i class="fas fa-key"></i> Настроить API ключи
-                            </a>
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>Внимание!</strong> Для начала торговли необходимо настроить API ключи.
+                        </div>
+                        <a href="/api-keys" class="btn btn-warning btn-lg">
+                            <i class="fas fa-key"></i> Настроить API ключи
+                        </a>
                         {% endif %}
                         <br><br>
                         <small class="text-muted">
@@ -779,11 +779,11 @@ function updateBalance() {
                             });
                             balanceInfo += ')';
                         } else if (demoExchanges.length > 0 && liveExchanges.length > 0) {
-                            balanceInfo += ' (Демо + Реал)';
-                        } else if (demoExchanges.length > 0) {
-                            balanceInfo += ' (Демо)';
-                        } else if (liveExchanges.length > 0) {
-                            balanceInfo += ' (Реал)';
+                        balanceInfo += ' (Демо + Реал)';
+                    } else if (demoExchanges.length > 0) {
+                        balanceInfo += ' (Демо)';
+                    } else if (liveExchanges.length > 0) {
+                        balanceInfo += ' (Реал)';
                         }
                     }
                     
@@ -900,23 +900,23 @@ function loadDetailedBalance() {
                             `;
                         }
                         
-                        balanceHtml += `
-                            <div class="card mb-3">
+                            balanceHtml += `
+                                <div class="card mb-3">
                                 <div class="card-header d-flex justify-content-between align-items-center">
                                     <h6 class="mb-0">${exchange.name}</h6>
                                     <span class="badge ${exchange.mode === 'demo' || exchange.mode === 'sandbox' ? 'bg-warning' : 'bg-success'}">
                                         ${exchange.mode === 'demo' || exchange.mode === 'sandbox' ? 'Демо' : 'Реал'}
                                     </span>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row">
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
                                         <div class="col-6">
                                             <strong>Общий баланс:</strong>
-                                        </div>
+                                                    </div>
                                         <div class="col-6 text-end">
                                             <strong>$${exchange.balance.toFixed(2)}</strong>
+                                                </div>
                                         </div>
-                                    </div>
                                     <div class="row mt-2">
                                         <div class="col-6">
                                             <small class="text-muted">ID ключа:</small>
@@ -934,10 +934,10 @@ function loadDetailedBalance() {
                                         </div>
                                     </div>
                                     ${currenciesHtml}
+                                    </div>
                                 </div>
-                            </div>
-                        `;
-                    });
+                            `;
+                });
                 }
                 
                 balanceContent.innerHTML = `

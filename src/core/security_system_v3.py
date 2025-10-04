@@ -63,7 +63,7 @@ class SecuritySystemV3:
         # Определяем правильный путь к базе данных
         if db_path is None:
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            parent_dir = os.path.dirname(current_dir)
+            parent_dir = os.path.dirname(os.path.dirname(current_dir))  # Поднимаемся на 2 уровня выше
             self.db_path = os.path.join(parent_dir, 'secure_users.db')
         else:
             self.db_path = db_path
@@ -630,6 +630,21 @@ class SecuritySystemV3:
         except Exception as e:
             self.logger.error(f"❌ Ошибка получения статистики безопасности: {e}")
             return {}
+    
+    def update_last_login(self, user_id: int):
+        """Обновление времени последнего входа"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE secure_users 
+                    SET last_login = ? 
+                    WHERE user_id = ?
+                ''', (datetime.now().isoformat(), user_id))
+                conn.commit()
+                self.logger.info(f"✅ Время входа обновлено для пользователя {user_id}")
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка обновления времени входа: {e}")
     
     def cleanup_expired_sessions(self):
         """Очистка истекших сессий"""

@@ -15,9 +15,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 from src.web.app import app
 
 if __name__ == '__main__':
-    print("🚀 Запуск веб-интерфейса...")
-    print("🌐 Откройте браузер: http://localhost:5000")
-    print("⏹️ Для остановки нажмите Ctrl+C")
+    print("Starting web interface...")
+    print("Open browser: http://localhost:5000")
+    print("Press Ctrl+C to stop")
     
     app.run(
         host='0.0.0.0',
@@ -25,6 +25,10 @@ if __name__ == '__main__':
         debug=True,
         use_reloader=False
     )
+
+
+
+
 
 
 

@@ -61,7 +61,10 @@
                     <button class="btn btn-sm btn-outline-warning" onclick="showBotInfo('scalp')" title="Информация о Scalp Bot">
                         <i class="fas fa-info-circle"></i> Scalp
                         </button>
-                    <button class="btn btn-sm btn-outline-primary" onclick="refreshBots()">Обновить</button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="event.preventDefault(); window.refreshBots(); return false;">Обновить</button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="window.updateBotsData()" title="Обновить список ботов">
+                        <i class="fas fa-sync-alt"></i> Обновить
+                        </button>
                     <button class="btn btn-sm btn-outline-danger" onclick="forceStopAllBots()" title="Принудительно остановить все боты">
                         <i class="fas fa-stop"></i> Остановить все
                         </button>
@@ -69,7 +72,7 @@
                         </div>
             <div class="card-body">
                 <div id="bots-list">
-                    <div class="text-center py-4">
+                        <div class="text-center py-4">
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Загрузка...</span>
                         </div>
@@ -157,40 +160,6 @@
                         </div>
                     </div>
                     
-<!-- Модальное окно для детальной информации о боте -->
-<div class="modal fade" id="botDetailsModal" tabindex="-1" aria-labelledby="botDetailsModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="botDetailsModalTitle">Детали бота</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-                        </div>
-            <div class="modal-body">
-                <div id="botDetailsContent">
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Загрузка...</span>
-                        </div>
-                        <p class="mt-2 text-muted">Загружаем детальную информацию...</p>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-                <button type="button" class="btn btn-info" onclick="showConsoleOutput()">
-                    <i class="fas fa-terminal"></i> Консоль
-                </button>
-                <button type="button" class="btn btn-primary" onclick="refreshBotDetails()">
-                    <i class="fas fa-sync"></i> Обновить
-                </button>
-            </div>
-                <button type="button" class="btn btn-primary" onclick="refreshBotDetails()">
-                    <i class="fas fa-sync-alt"></i> Обновить
-                        </button>
-                    </div>
-                </div>
-                        </div>
-                    </div>
                     
 <!-- Модальное окно для выбора пар с биржи -->
 <div class="modal fade" id="exchangePairsModal" tabindex="-1" aria-labelledby="exchangePairsModalLabel" aria-hidden="true">
@@ -308,18 +277,159 @@
                     <i class="fas fa-trash"></i> Очистить
                 </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-</div>
 
 <script>
+console.log('📜 Скрипт bots.html загружается...');
+
+// Сначала определяем основные функции
+window.updateBotsData = function() {
+    console.log('🔄 updateBotsData вызвана!');
+    console.log('🔄 Загружаем данные ботов...');
+    
+    // Показываем спиннер
+    const botsContainer = document.getElementById('bots-list');
+    if (botsContainer) {
+        botsContainer.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <p class="mt-2 text-muted">Загружаем список ботов...</p>
+            </div>
+        `;
+    }
+    
+    fetch('/api/bots/status', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+        .then(response => {
+            console.log('📊 Статус ответа:', response.status);
+            if (response.status === 302) {
+                console.log('❌ Перенаправление на страницу входа');
+                window.location.href = '/login';
+                return;
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Получены данные:', data);
+            if (data && data.success && data.bots) {
+                console.log('✅ Найдено ботов:', data.bots.length);
+                window.renderBotsList(data.bots);
+            } else {
+                console.log('❌ Нет данных о ботах или ошибка API');
+                window.renderBotsList([]);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Ошибка загрузки ботов:', error);
+            const botsContainer = document.getElementById('bots-list');
+            if (botsContainer) {
+                botsContainer.innerHTML = `
+                    <div class="alert alert-danger text-center">
+                        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                        <h5>Ошибка загрузки ботов</h5>
+                        <p>Не удалось загрузить список ботов. Попробуйте обновить страницу.</p>
+                        <button class="btn btn-primary" onclick="window.updateBotsData()">
+                            <i class="fas fa-sync-alt"></i> Попробовать снова
+                        </button>
+                    </div>
+                `;
+            }
+        });
+};
+
+window.renderBotsList = function(bots) {
+    console.log('🔄 renderBotsList вызвана с ботами:', bots);
+    const botsContainer = document.getElementById('bots-list');
+    if (!botsContainer) {
+        console.log('❌ Контейнер bots-list не найден');
+        return;
+    }
+    
+    if (bots.length === 0) {
+        botsContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-robot fa-3x mb-3"></i>
+                    <h4>Нет ботов</h4>
+                    <p>Создайте своего первого бота для начала торговли</p>
+                    <button class="btn btn-primary" onclick="showCreateBotModal()">
+                        <i class="fas fa-plus"></i> Создать бота
+                    </button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    bots.forEach(bot => {
+        const statusClass = bot.status === 'running' ? 'success' : 
+                           bot.status === 'stopped' ? 'danger' : 'warning';
+        const statusText = bot.status === 'running' ? 'Запущен' : 
+                          bot.status === 'stopped' ? 'Остановлен' : 'Создан';
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">${bot.name}</h5>
+                        <span class="badge bg-${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">
+                            <strong>Тип:</strong> ${bot.type === 'grid' ? 'Grid Bot' : 'Scalp Bot'}<br>
+                            <strong>ID:</strong> ${bot.id}<br>
+                            <strong>Статус:</strong> ${bot.status}
+                        </p>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-outline-primary btn-sm" onclick="showBotDetails('${bot.id}')">
+                                <i class="fas fa-info-circle"></i> Детали
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" onclick="startBot('${bot.id}')">
+                                <i class="fas fa-play"></i> Запустить
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="stopBot('${bot.id}')">
+                                <i class="fas fa-stop"></i> Остановить
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="deleteBot('${bot.id}')" title="Удалить бота">
+                                <i class="fas fa-trash"></i> Удалить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    botsContainer.innerHTML = html;
+    console.log('✅ Список ботов обновлен - отображено ботов:', bots.length);
+};
+
+console.log('✅ Основные функции определены');
+console.log('🔍 Проверяем функции:');
+console.log('showBotDetails:', typeof window.showBotDetails);
+console.log('loadBotDetails:', typeof window.loadBotDetails);
+console.log('updateBotsData:', typeof window.updateBotsData);
+console.log('renderBotsList:', typeof window.renderBotsList);
+
 // Определяем функцию createBot в глобальной области
 window.createBot = function(botType) {
     console.log('createBot вызвана с типом:', botType);
     
     try {
-        document.getElementById('botType').value = botType;
+    document.getElementById('botType').value = botType;
         
         // Определяем название бота
         let botName = '';
@@ -335,22 +445,22 @@ window.createBot = function(botType) {
         }
         
         document.getElementById('createBotModalTitle').textContent = `Создание ${botName}`;
-        
-        // Загружаем доступные API ключи
-        loadAvailableApiKeys();
-        
-        // Обработчики для переключения режима
-        setupModeHandlers();
-        
-        const modal = new bootstrap.Modal(document.getElementById('createBotModal'));
-        modal.show();
+    
+    // Загружаем доступные API ключи
+    loadAvailableApiKeys();
+    
+    // Обработчики для переключения режима
+    setupModeHandlers();
+    
+    const modal = new bootstrap.Modal(document.getElementById('createBotModal'));
+    modal.show();
     } catch (error) {
         console.error('Ошибка в createBot:', error);
         alert('Ошибка открытия модального окна: ' + error.message);
     }
 }
 
-function loadAvailableApiKeys() {
+window.loadAvailableApiKeys = function() {
     fetch('/api/bots/available-keys')
         .then(response => response.json())
         .then(data => {
@@ -359,10 +469,10 @@ function loadAvailableApiKeys() {
             
             if (data.success && data.keys && data.keys.length > 0) {
                 data.keys.forEach(key => {
-                    const option = document.createElement('option');
+                        const option = document.createElement('option');
                     option.value = key.key_id;
                     option.textContent = key.display_name;
-                    select.appendChild(option);
+                        select.appendChild(option);
                 });
                 
                 if (select.children.length === 1) {
@@ -386,7 +496,7 @@ function loadAvailableApiKeys() {
         });
 }
 
-function setupModeHandlers() {
+window.setupModeHandlers = function() {
     const demoMode = document.getElementById('modeDemo');
     const liveMode = document.getElementById('modeLive');
     const warning = document.getElementById('liveModeWarning');
@@ -408,7 +518,7 @@ function setupModeHandlers() {
     });
 }
 
-function updateApiKeysForMode(mode) {
+window.updateApiKeysForMode = function(mode) {
     fetch('/api/bots/available-keys')
         .then(response => response.json())
         .then(data => {
@@ -417,13 +527,13 @@ function updateApiKeysForMode(mode) {
             
             if (data.success && data.keys && data.keys.length > 0) {
                 data.keys.forEach(key => {
-                    // Фильтруем ключи по режиму
-                    const keyMode = key.mode === 'sandbox' ? 'demo' : 'live';
-                    if (keyMode === mode) {
-                        const option = document.createElement('option');
+                        // Фильтруем ключи по режиму
+                        const keyMode = key.mode === 'sandbox' ? 'demo' : 'live';
+                        if (keyMode === mode) {
+                            const option = document.createElement('option');
                         option.value = key.key_id;
                         option.textContent = key.display_name;
-                        select.appendChild(option);
+                            select.appendChild(option);
                     }
                 });
                 
@@ -443,7 +553,7 @@ function updateApiKeysForMode(mode) {
         });
 }
 
-function submitCreateBot() {
+window.submitCreateBot = function() {
     // Защита от множественного создания
     const submitButton = document.querySelector('#createBotModal .btn-success');
     if (submitButton && submitButton.disabled) {
@@ -519,74 +629,10 @@ function submitCreateBot() {
     });
 }
 
-function startBot(botId) {
-    fetch(`/api/bots/${botId}/start`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message);
-            setTimeout(() => {
-                refreshBots();
-            }, 1500);
-        } else {
-            showAlert('danger', 'Ошибка: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        showAlert('danger', 'Ошибка запуска бота');
-    });
-}
+// Старые упрощенные версии startBot, stopBot, deleteBot удалены
+// Полные версии с логированием определены ниже (строки 1636+)
 
-function stopBot(botId) {
-    fetch(`/api/bots/${botId}/stop`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message);
-            setTimeout(() => {
-                refreshBots();
-            }, 1500);
-        } else {
-            showAlert('danger', 'Ошибка: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        showAlert('danger', 'Ошибка остановки бота');
-    });
-}
-
-function deleteBot(botId) {
-    if (!confirm('Вы уверены, что хотите удалить этого бота? Это действие нельзя отменить.')) {
-        return;
-    }
-    
-    fetch(`/api/bots/${botId}/delete`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message);
-            setTimeout(() => {
-                refreshBots();
-            }, 1500);
-        } else {
-            showAlert('danger', 'Ошибка: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        showAlert('danger', 'Ошибка удаления бота');
-    });
-}
-
-function updateBotsList(bots) {
+window.updateBotsList = function(bots) {
     console.log('🔄 updateBotsList вызвана с ботами:', bots);
     // Обновление списка ботов в DOM
     const botsList = document.getElementById('bots-list');
@@ -661,49 +707,10 @@ function updateBotsList(bots) {
     console.log(`✅ Обновлен список ботов: ${bots.length} ботов`);
 }
 
-function refreshBots() {
-    // Защита от множественных запросов
-    if (isRefreshing) {
-        console.log('🔄 Обновление уже выполняется, пропускаем...');
-        return;
-    }
-    
-    isRefreshing = true;
-    
-    fetch('/api/bots/status')
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Если модальное окно открыто, не перезагружаем страницу
-            if (isModalOpen) {
-                // Обновляем только данные в модальном окне
-                if (currentBotId) {
-                    loadBotDetails(currentBotId);
-                }
-            } else {
-                // Обновляем список ботов через DOM
-                updateBotsList(data.bots || []);
-            }
-        } else {
-            if (!isModalOpen) {
-                showAlert('danger', 'Ошибка обновления статуса ботов');
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        if (!isModalOpen) {
-            showAlert('danger', 'Ошибка обновления ботов');
-        }
-    })
-    .finally(() => {
-        // Сбрасываем флаг после завершения запроса
-        isRefreshing = false;
-    });
-}
+// Старая версия refreshBots удалена - используется полная версия ниже
 
 // Функция для загрузки данных бота
-function loadBotDetailsData(botId) {
+window.loadBotDetailsData = function(botId) {
     const content = document.getElementById('botDetailsContent');
     
     // Показываем спиннер
@@ -742,7 +749,7 @@ function loadBotDetailsData(botId) {
                 // Добавляем логи к данным бота
                 botData.logs = logsData.success ? logsData.logs : [];
                 renderBotDetails(botData, detailsData.charts, detailsData.system_metrics, botData.logs);
-            } else {
+        } else {
                 console.error('Данные бота не найдены в ответе API');
                 content.innerHTML = `
                     <div class="alert alert-warning">
@@ -772,7 +779,7 @@ function loadBotDetailsData(botId) {
     });
 
 // Функция для отображения деталей бота
-function renderBotDetails(botData, charts, metrics, logs) {
+window.renderBotDetails = function(botData, charts, metrics, logs) {
     console.log('Функция renderBotDetails вызвана с данными:', botData);
     
     const content = document.getElementById('botDetailsContent');
@@ -1145,7 +1152,7 @@ function renderBotDetails(botData, charts, metrics, logs) {
 }
 
 // Функция для закрытия модального окна
-function closeBotDetailsModal() {
+window.closeBotDetailsModal = function() {
     const modalElement = document.getElementById('botDetailsModal');
     const backdrop = document.getElementById('modal-backdrop-force');
     
@@ -1261,76 +1268,13 @@ function toggleAutomation(botId, setting, enabled) {
 }
 
 // Функция для обновления деталей бота
-function refreshBotDetails() {
+window.refreshBotDetails = function() {
     const modalTitle = document.getElementById('botDetailsModalLabel').textContent;
     const botId = modalTitle.split(' ').pop();
     loadBotDetailsData(botId);
 }
 
-function showBotInfo(botType) {
-    let title, description, features;
-    
-    if (botType === 'grid') {
-        title = 'Grid Trading Bot';
-        description = 'Сеточная торговля с автоматическим размещением ордеров на разных уровнях цены';
-        features = [
-            'Автоматическое размещение ордеров на покупку и продажу',
-            'Адаптивные сетки в зависимости от волатильности',
-            'Управление рисками с помощью стоп-лоссов',
-            'Поддержка множественных торговых пар',
-            'Мониторинг в реальном времени'
-        ];
-    } else if (botType === 'scalp') {
-        title = 'Scalp Trading Bot';
-        description = 'Быстрая торговля с использованием машинного обучения для поиска краткосрочных возможностей';
-        features = [
-            'ML-сигналы для входа и выхода',
-            'Быстрые сделки с минимальными рисками',
-            'Автоматическая оптимизация параметров',
-            'Анализ рыночных паттернов',
-            'Уведомления о торговых возможностях'
-        ];
-    
-    // Создаем модальное окно с информацией
-    const modalHtml = `
-        <div class="modal fade" id="botInfoModal" tabindex="-1" aria-labelledby="botInfoModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="botInfoModalLabel">${title}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="lead">${description}</p>
-                        <h6>Основные возможности:</h6>
-                        <ul class="list-group list-group-flush">
-                            ${features.map(feature => `<li class="list-group-item">${feature}</li>`).join('')}
-                        </ul>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-primary" onclick="createBot('${botType}')" data-bs-dismiss="modal">
-                            Создать ${botType === 'grid' ? 'Grid' : 'Scalp'} Bot
-                        </button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Удаляем старое модальное окно, если есть
-    const existingModal = document.getElementById('botInfoModal');
-    if (existingModal) {
-        existingModal.remove();
-    }
-    
-    // Добавляем новое модальное окно
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // Показываем модальное окно
-    const modal = new bootstrap.Modal(document.getElementById('botInfoModal'));
-    modal.show();
-}
+// Старая сложная версия showBotInfo удалена - используется простая версия ниже
 
 // Переменные для консольного мониторинга
 let consoleMonitoring = false;
@@ -1418,57 +1362,23 @@ function fetchConsoleLogs() {
     if (!currentBotId) return;
     
     fetch(`/api/bots/${currentBotId}/logs/live`)
-        .then(response => response.json())
-        .then(data => {
+    .then(response => response.json())
+    .then(data => {
             if (data.success && data.logs) {
                 // Добавляем только новые записи
                 data.logs.forEach(log => {
                     addConsoleLine(log, 'info');
                 });
-            }
-        })
-        .catch(error => {
+        }
+    })
+    .catch(error => {
             console.error('Ошибка получения логов:', error);
         });
 }
 
-function forceStopAllBots() {
-    if (!confirm('⚠️ ВНИМАНИЕ!\n\nВы собираетесь принудительно остановить ВСЕ боты.\n\nЭто действие:\n• Немедленно остановит все запущенные боты\n• Может привести к потере незавершенных сделок\n• Нельзя отменить\n\nПродолжить?')) {
-        return;
-    }
-    
-    // Показываем индикатор загрузки
-    const button = event.target;
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Останавливаем...';
-    button.disabled = true;
-    
-    fetch('/api/bots/force-stop-all', {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message);
-            setTimeout(() => {
-                location.reload();
-            }, 2000);
-        } else {
-            showAlert('danger', 'Ошибка: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        showAlert('danger', 'Ошибка принудительной остановки ботов');
-    })
-    .finally(() => {
-        // Восстанавливаем кнопку
-        button.innerHTML = originalText;
-        button.disabled = false;
-    });
-}
+// Старая версия forceStopAllBots удалена - используется версия ниже
 
-function showAlert(type, message) {
+window.showAlert = function(type, message) {
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     
@@ -1515,119 +1425,15 @@ window.addEventListener('beforeunload', function() {
 });
 
 // Автоматическое обновление статуса каждые 30 секунд
-refreshInterval = setInterval(refreshBots, 30000);
+refreshInterval = setInterval(window.refreshBots, 30000);
 
 // Сохраняем состояние модального окна
 let isModalOpen = false;
 
-// Отслеживаем открытие/закрытие модального окна
-// Функция для загрузки данных ботов
-function updateBotsData() {
-    console.log('🔄 Загружаем данные ботов...');
-    
-    fetch('/api/bots/status', {
-        method: 'GET',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-        .then(response => {
-            console.log('📊 Статус ответа:', response.status);
-            if (response.status === 302) {
-                console.log('❌ Перенаправление на страницу входа');
-                window.location.href = '/login';
-                return;
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data && data.bots) {
-                console.log('✅ Найдено ботов:', data.bots.length);
-                renderBotsList(data.bots);
-            } else {
-                console.log('❌ Нет данных о ботах');
-                renderBotsList([]);
-            }
-        })
-        .catch(error => {
-            console.error('❌ Ошибка загрузки ботов:', error);
-            renderBotsList([]);
-        });
-}
-
-// Функция для отображения списка ботов
-function renderBotsList(bots) {
-    console.log('🔄 renderBotsList вызвана с ботами:', bots);
-    const botsContainer = document.getElementById('bots-list');
-    if (!botsContainer) {
-        console.log('❌ Контейнер bots-list не найден');
-        return;
-    }
-    
-    if (bots.length === 0) {
-        botsContainer.innerHTML = `
-            <div class="col-12">
-                <div class="alert alert-info text-center">
-                    <i class="fas fa-robot fa-3x mb-3"></i>
-                    <h4>Нет ботов</h4>
-                    <p>Создайте своего первого бота для начала торговли</p>
-                    <button class="btn btn-primary" onclick="showCreateBotModal()">
-                        <i class="fas fa-plus"></i> Создать бота
-                    </button>
-                </div>
-            </div>
-        `;
-        return;
-    }
-    
-    let html = '';
-    bots.forEach(bot => {
-        const statusClass = bot.status === 'running' ? 'success' : 
-                           bot.status === 'stopped' ? 'danger' : 'warning';
-        const statusText = bot.status === 'running' ? 'Запущен' : 
-                          bot.status === 'stopped' ? 'Остановлен' : 'Создан';
-        
-        html += `
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">${bot.name}</h5>
-                        <span class="badge bg-${statusClass}">${statusText}</span>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-text">
-                            <strong>Тип:</strong> ${bot.type === 'grid' ? 'Grid Bot' : 'Scalp Bot'}<br>
-                            <strong>ID:</strong> ${bot.id}<br>
-                            <strong>Статус:</strong> ${bot.status}
-                        </p>
-                    </div>
-                    <div class="card-footer">
-                        <div class="btn-group w-100" role="group">
-                            <button class="btn btn-outline-primary btn-sm" onclick="showBotDetails('${bot.id}')">
-                                <i class="fas fa-info-circle"></i> Детали
-                            </button>
-                            <button class="btn btn-outline-success btn-sm" onclick="startBot('${bot.id}')">
-                                <i class="fas fa-play"></i> Запустить
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" onclick="stopBot('${bot.id}')">
-                                <i class="fas fa-stop"></i> Остановить
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    botsContainer.innerHTML = html;
-    console.log('✅ Список ботов обновлен - отображено ботов:', bots.length);
-}
-
 // Функции для работы с ботами
 // Удален дубликат showBotDetails. См. корректную версию ниже.
 
-function startBot(botId) {
+window.startBot = function(botId) {
     console.log('🚀 Запускаем бота:', botId);
     fetch(`/api/bots/${botId}/start`, { 
         method: 'POST',
@@ -1640,7 +1446,7 @@ function startBot(botId) {
         .then(data => {
             if (data.success) {
                 console.log('✅ Бот запущен');
-                updateBotsData(); // Обновляем список
+                window.updateBotsData(); // Обновляем список
             } else {
                 console.error('❌ Ошибка запуска:', data.error);
                 alert('Ошибка запуска бота: ' + data.error);
@@ -1652,7 +1458,7 @@ function startBot(botId) {
         });
 }
 
-function stopBot(botId) {
+window.stopBot = function(botId) {
     console.log('⏹️ Останавливаем бота:', botId);
     fetch(`/api/bots/${botId}/stop`, { 
         method: 'POST',
@@ -1665,7 +1471,7 @@ function stopBot(botId) {
         .then(data => {
             if (data.success) {
                 console.log('✅ Бот остановлен');
-                updateBotsData(); // Обновляем список
+                window.updateBotsData(); // Обновляем список
             } else {
                 console.error('❌ Ошибка остановки:', data.error);
                 alert('Ошибка остановки бота: ' + data.error);
@@ -1677,57 +1483,49 @@ function stopBot(botId) {
         });
 }
 
-function showCreateBotModal() {
-    console.log('➕ Показываем модальное окно создания бота');
-    const modal = new bootstrap.Modal(document.getElementById('createBotModal'));
-    modal.show();
-}
+// Старая версия showCreateBotModal удалена - используется версия ниже
 
 // Добавляем недостающие функции
-function createBot() {
-    console.log('🤖 Создаем бота...');
-    const form = document.getElementById('createBotForm');
-    const formData = new FormData(form);
+// Вторая версия createBot удалена - используется версия выше
+
+window.refreshBots = function() {
+    console.log('🔄 Обновляем список ботов...');
+    window.updateBotsData();
+};
+
+// Функция удаления бота
+window.deleteBot = function(botId) {
+    console.log('🗑️ Удаляем бота:', botId);
     
-    const botData = {
-        name: formData.get('botName'),
-        type: formData.get('botType'),
-        risk_level: formData.get('riskLevel'),
-        auto_rebalance: formData.get('autoRebalance') === 'on'
-    };
+    if (!confirm('Вы уверены, что хотите удалить этого бота? Это действие нельзя отменить.')) {
+        return;
+    }
     
-    fetch('/api/bots/create', {
-        method: 'POST',
+    fetch(`/api/bots/${botId}/delete`, {
+        method: 'DELETE',
         credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(botData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            console.log('✅ Бот создан:', data.bot_id);
-            updateBotsData(); // Обновляем список
-            bootstrap.Modal.getInstance(document.getElementById('createBotModal')).hide();
-            showAlert('success', 'Бот успешно создан!');
-        } else {
-            console.error('❌ Ошибка создания:', data.error);
-            showAlert('danger', 'Ошибка создания бота: ' + data.error);
         }
     })
-    .catch(error => {
-        console.error('❌ Ошибка:', error);
-        showAlert('danger', 'Ошибка создания бота');
-    });
-}
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('✅ Бот удален');
+                window.updateBotsData(); // Обновляем список
+                showAlert('success', 'Бот успешно удален');
+            } else {
+                console.error('❌ Ошибка удаления:', data.error);
+                showAlert('danger', 'Ошибка удаления бота: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Ошибка:', error);
+            showAlert('danger', 'Ошибка удаления бота');
+        });
+};
 
-function refreshBots() {
-    console.log('🔄 Обновляем список ботов...');
-    updateBotsData();
-}
-
-function showBotInfo(botType) {
+window.showBotInfo = function(botType) {
     console.log('ℹ️ Показываем информацию о боте:', botType);
     
     const modal = new bootstrap.Modal(document.getElementById('botInfoModal'));
@@ -1755,7 +1553,7 @@ function showBotInfo(botType) {
     modal.show();
 }
 
-function forceStopAllBots() {
+window.forceStopAllBots = function() {
     console.log('⏹️ Принудительная остановка всех ботов...');
     
     if (confirm('Вы уверены, что хотите остановить все боты?')) {
@@ -1770,7 +1568,7 @@ function forceStopAllBots() {
         .then(data => {
             if (data.success) {
                 console.log('✅ Все боты остановлены');
-                updateBotsData();
+                window.updateBotsData();
                 showAlert('success', 'Все боты успешно остановлены');
             } else {
                 console.error('❌ Ошибка остановки:', data.error);
@@ -1784,15 +1582,34 @@ function forceStopAllBots() {
     }
 }
 
-function showCreateBotModal() {
+window.showCreateBotModal = function() {
     console.log('➕ Показываем модальное окно создания бота');
     const modal = new bootstrap.Modal(document.getElementById('createBotModal'));
     modal.show();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 DOM загружен, вызываем updateBotsData()');
+    console.log('🔍 Проверяем доступность функций:');
+    console.log('updateBotsData:', typeof window.updateBotsData);
+    console.log('renderBotsList:', typeof window.renderBotsList);
+    
     // Загружаем данные ботов при загрузке страницы
-    updateBotsData();
+    if (typeof window.updateBotsData === 'function') {
+        window.updateBotsData();
+    } else {
+        console.error('❌ Функция updateBotsData не найдена!');
+    }
+    
+    // Дополнительная проверка через 2 секунды
+    setTimeout(() => {
+        console.log('⏰ Проверка через 2 секунды...');
+        const botsContainer = document.getElementById('bots-list');
+        if (botsContainer && botsContainer.innerHTML.includes('spinner-border')) {
+            console.log('⚠️ Спиннер все еще крутится, принудительно обновляем...');
+            window.updateBotsData();
+        }
+    }, 2000);
     
     const modal = document.getElementById('botDetailsModal');
     if (modal) {
@@ -1838,7 +1655,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Переменная для хранения текущего bot_id в модальном окне
 // Удалено дублирующее объявление currentBotId (используем window.currentBotId)
 
-function showBotDetails(botId) {
+window.showBotDetails = function(botId) {
     console.log('DEBUG: showBotDetails called with botId:', botId);
     currentBotId = botId;  // Устанавливаем currentBotId для консоли
     
@@ -1847,13 +1664,13 @@ function showBotDetails(botId) {
     modal.show();
     
     // Обновляем заголовок
-    document.getElementById('botDetailsModalTitle').textContent = `Детали бота ${botId}`;
+    document.getElementById('botDetailsModalLabel').textContent = `Детали бота ${botId}`;
     
     // Загружаем детальную информацию
-    loadBotDetails(botId);
-}
+    window.loadBotDetails(botId);
+};
 
-function loadBotDetails(botId) {
+window.loadBotDetails = function(botId) {
     console.log('DEBUG: loadBotDetails called with botId:', botId);
     
     // Сохраняем ID текущего бота для обновления времени работы
@@ -1898,391 +1715,73 @@ function loadBotDetails(botId) {
                         </div>
             `;
         });
-}
+};
 
-function renderBotDetails(botDetails) {
-    const content = `
-        <!-- Заголовок с основной информацией -->
-    <div class="row mb-4">
-        <div class="col-12">
-                <div class="card border-0 bg-gradient-primary text-white">
-                <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-md-8">
-                                <h4 class="mb-2">
-                                    <i class="fas fa-robot me-2"></i>
-                                    ${botDetails.name || 'Торговый бот'}
-                                    <span class="badge bg-light text-dark ms-2">
-                                        ${botDetails.type === 'grid' ? '🎯 Grid Bot' : '⚡ Scalp Bot'}
-                                    </span>
-                                </h4>
-                                <p class="mb-0">
-                                    <strong>ID:</strong> <code class="text-white">${botDetails.id || botDetails.bot_id}</code> | 
-                                    <strong>Статус:</strong> 
-                                    <span class="badge bg-${botDetails.status === 'running' ? 'success' : 'secondary'}">
-                                        ${botDetails.status === 'running' ? '🟢 Запущен' : '⏸️ Остановлен'}
-                                    </span> |
-                                    <strong>Режим:</strong> 
-                                    <span class="badge bg-${botDetails.mode === 'demo' ? 'warning' : 'danger'}">
-                                        ${botDetails.mode === 'demo' ? '🎮 Демо' : '💰 Реальный'}
-                                    </span>
-                                </p>
-                            </div>
-                            <div class="col-md-4 text-end">
-                                <div class="row text-center">
-                                    <div class="col-4">
-                                        <h5 class="mb-0">${botDetails.trading_pairs?.length || 0}</h5>
-                                        <small>Торговых пар</small>
-                                    </div>
-                                    <div class="col-4">
-                                        <h5 class="mb-0">${botDetails.system_metrics?.cpu_usage || 0}%</h5>
-                                        <small>CPU</small>
-                                    </div>
-                                    <div class="col-4">
-                                        <h5 class="mb-0">${botDetails.system_metrics?.memory_usage || 0}%</h5>
-                                        <small>RAM</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+// Вторая версия renderBotDetails удалена - используется версия с 4 параметрами выше
 
-        <!-- Основные метрики -->
-        <div class="row mb-4">
-                        <div class="col-md-3">
-                <div class="card text-center border-0 shadow-sm">
-                    <div class="card-body">
-                        <i class="fas fa-clock text-primary fa-2x mb-2"></i>
-                        <h5 class="text-primary">${calculateUptime(botDetails)}</h5>
-                        <small class="text-muted">Время работы</small>
-                    </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                <div class="card text-center border-0 shadow-sm">
-                    <div class="card-body">
-                        <i class="fas fa-chart-line text-success fa-2x mb-2"></i>
-                        <h5 class="text-success">${botDetails.grid_info?.total_orders || 0}</h5>
-                        <small class="text-muted">Всего ордеров</small>
-                    </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                <div class="card text-center border-0 shadow-sm">
-                    <div class="card-body">
-                        <i class="fas fa-check-circle text-info fa-2x mb-2"></i>
-                        <h5 class="text-info">${botDetails.grid_info?.executed_orders || 0}</h5>
-                        <small class="text-muted">Исполнено</small>
-                    </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                <div class="card text-center border-0 shadow-sm">
-                    <div class="card-body">
-                        <i class="fas fa-percentage text-warning fa-2x mb-2"></i>
-                        <h5 class="text-warning">${botDetails.grid_info?.success_rate || '0%'}</h5>
-                        <small class="text-muted">Успешность</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+// HTML код от второй версии renderBotDetails удален
 
-        <!-- Управление торговыми парами -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        <h6 class="mb-0"><i class="fas fa-cogs"></i> Управление торговыми парами</h6>
-            </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6>Добавить торговую пару</h6>
-                                <div class="input-group mb-3">
-                                    <label for="newTradingPair" class="visually-hidden">Новая торговая пара</label>
-                                    <input type="text" class="form-control" id="newTradingPair" 
-                                           placeholder="Например: BTC/USDT" 
-                                           title="Формат: БАЗОВАЯ_ВАЛЮТА/КОТИРОВОЧНАЯ_ВАЛЮТА"
-                                           onkeypress="if(event.key==='Enter') addTradingPair()">
-                                    <button class="btn btn-success" onclick="addTradingPair()">
-                                        <i class="fas fa-plus"></i> Добавить
-                                    </button>
-                                    <button class="btn btn-info" onclick="loadExchangePairs()" title="Загрузить пары с биржи">
-                                        <i class="fas fa-download"></i> С биржи
-                                    </button>
-                                </div>
-                                <small class="text-muted">
-                                    <i class="fas fa-info-circle"></i> 
-                                    Формат: BTC/USDT, ETH/USDT, SOL/USDT и т.д.
-                                </small>
-                            </div>
-                            <div class="col-md-6">
-                                <h6>📋 Рекомендованные пары (справочник)</h6>
-                                <small class="text-muted" id="pairsLimitInfo">
-                                    Выберите пары для добавления в торговлю
-                                </small>
-                                <div class="alert alert-info alert-sm mt-2" id="userLimitsAlert" style="display: none;">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span id="limitsMessage"></span>
-                                </div>
-                                <div id="availablePairsList" class="list-group" style="max-height: 200px; overflow-y: auto;">
-                                    <!-- Список будет загружен динамически -->
-                                </div>
-                                <button class="btn btn-outline-primary btn-sm mt-2" onclick="loadRecommendedPairs()">
-                                    <i class="fas fa-sync"></i> Обновить рекомендации
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-        </div>
-    </div>
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
 
-        <!-- Режим работы и распределение капитала -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-success text-white">
-                        <h6 class="mb-0"><i class="fas fa-cog"></i> Режим работы</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label" for="botModeSelect">Текущий режим:</label>
-                            <select class="form-select" id="botModeSelect" onchange="changeBotMode()">
-                                <option value="automatic">🤖 Автоматический (адаптивный)</option>
-                                <option value="conservative">🛡️ Консервативный</option>
-                                <option value="aggressive">⚡ Агрессивный</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="totalCapital">Общий капитал:</label>
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control" id="totalCapital" 
-                                       value="1000" step="0.01" onchange="updateCapitalDistribution()" 
-                                       oninput="autoUpdateMode()">
-                            </div>
-                            <small class="text-muted">
-                                <i class="fas fa-info-circle"></i> 
-                                При автоматическом режиме бот сам выберет стратегию на основе баланса
-                            </small>
-                        </div>
-                        <button class="btn btn-primary btn-sm" onclick="updateBotSettings()">
-                            <i class="fas fa-save"></i> Сохранить настройки
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-8">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-warning text-white">
-                        <h6 class="mb-0"><i class="fas fa-chart-pie"></i> 🎯 Мои торговые пары</h6>
-                    </div>
-                    <div class="card-body">
-                        <div id="capitalDistributionTable">
-                            <div class="text-center text-muted py-3">
-                                <i class="fas fa-chart-pie fa-2x mb-2"></i>
-                                <p>Нет торговых пар для отображения</p>
-                                <small>Добавьте торговые пары выше</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+// Функции для работы с реальными данными
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
 
-        <!-- Графики и аналитика -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-info text-white">
-                        <h6 class="mb-0"><i class="fas fa-chart-area"></i> График производительности</h6>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="performanceChart" width="400" height="200"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-secondary text-white">
-                        <h6 class="mb-0"><i class="fas fa-chart-line"></i> 📊 Анализ моих пар</h6>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="marketAnalysisChart" width="400" height="200"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален 
+// HTML код от второй версии renderBotDetails полностью удален 
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
 
-        <!-- Детальная аналитика торговли -->
-        <div class="row mb-4">
-            <div class="col-md-8">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-dark text-white">
-                        <h6 class="mb-0"><i class="fas fa-chart-line"></i> Анализ торговых операций</h6>
-                    </div>
-                    <div class="card-body">
-    <div class="row">
-                            <div class="col-md-6">
-                                <h6 class="text-primary">📊 Статистика сделок</h6>
-                                <ul class="list-unstyled">
-                                    <li><strong>Всего сделок:</strong> ${botDetails.grid_info?.total_orders || 0}</li>
-                                    <li><strong>Исполнено:</strong> ${botDetails.grid_info?.executed_orders || 0}</li>
-                                    <li><strong>В ожидании:</strong> ${(botDetails.grid_info?.total_orders || 0) - (botDetails.grid_info?.executed_orders || 0)}</li>
-                                    <li><strong>Успешность:</strong> ${botDetails.grid_info?.success_rate || '0%'}</li>
-                                </ul>
-                            </div>
-                             <div class="col-md-6">
-                                 <h6 class="text-success">💰 Финансовые показатели</h6>
-                                 <ul class="list-unstyled">
-                                     <li><strong>Общий объем:</strong> $${(botDetails.total_volume || 0).toFixed(2)}</li>
-                                     <li><strong>Прибыль:</strong> <span class="text-${(botDetails.profit || 0) >= 0 ? 'success' : 'danger'}">${(botDetails.profit || 0) >= 0 ? '+' : ''}$${(botDetails.profit || 0).toFixed(2)}</span></li>
-                                     <li><strong>Комиссии:</strong> $${(botDetails.fees || 0).toFixed(2)}</li>
-                                     <li><strong>ROI:</strong> <span class="text-${(botDetails.roi || 0) >= 0 ? 'success' : 'danger'}">${(botDetails.roi || 0) >= 0 ? '+' : ''}${(botDetails.roi || 0).toFixed(2)}%</span></li>
-                                 </ul>
-                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-secondary text-white">
-                        <h6 class="mb-0"><i class="fas fa-cog"></i> Настройки бота</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <strong>Режим работы:</strong><br>
-                            <span class="badge bg-${botDetails.mode === 'demo' ? 'warning' : 'danger'}">
-                                ${botDetails.mode === 'demo' ? '🎮 Демо' : '💰 Реальный'}
-                            </span>
-                        </div>
-                        <div class="mb-3">
-                            <strong>Биржа:</strong><br>
-                            <span class="badge bg-info">${botDetails.exchange?.toUpperCase() || 'Н/Д'}</span>
-                        </div>
-                        <div class="mb-3">
-                            <strong>Создан:</strong><br>
-                            <small>${botDetails.created_at ? new Date(botDetails.created_at).toLocaleString('ru-RU') : 'Неизвестно'}</small>
-                        </div>
-                        <div class="mb-3">
-                            <strong>Последнее обновление:</strong><br>
-                            <small>${botDetails.last_update ? new Date(botDetails.last_update).toLocaleString('ru-RU') : 'Неизвестно'}</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
 
-        <!-- Активные сетки и ордера -->
-        <div class="row mb-4">
-        <div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        <h6 class="mb-0"><i class="fas fa-th"></i> Активные сетки и ордера</h6>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                            <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Пара</th>
-                                    <th>Тип</th>
-                                        <th>Цена</th>
-                                        <th>Объем</th>
-                                        <th>Статус</th>
-                                    <th>Время</th>
-                                        <th>Прибыль</th>
-                                </tr>
-                            </thead>
-                                 <tbody>
-                                     ${(botDetails.orders || []).length > 0 ? 
-                                         (botDetails.orders || []).map(order => `
-                                             <tr>
-                                                 <td><strong>${order.pair || 'Н/Д'}</strong></td>
-                                                 <td><span class="badge bg-${order.side === 'buy' ? 'success' : 'danger'}">${order.side === 'buy' ? 'Покупка' : 'Продажа'}</span></td>
-                                                 <td>$${order.price || '0.00'}</td>
-                                                 <td>${order.amount || '0.00'}</td>
-                                                 <td><span class="badge bg-${order.status === 'filled' ? 'success' : 'warning'}">${order.status === 'filled' ? 'Исполнен' : 'В ожидании'}</span></td>
-                                                 <td><small>${order.timestamp ? new Date(order.timestamp).toLocaleTimeString('ru-RU') : 'Н/Д'}</small></td>
-                                                 <td class="text-${(order.profit || 0) > 0 ? 'success' : 'danger'}">${(order.profit || 0) > 0 ? '+' : ''}$${(order.profit || 0).toFixed(2)}</td>
-                                             </tr>
-                                         `).join('') : 
-                                         `<tr><td colspan="7" class="text-center text-muted">Нет активных ордеров</td></tr>`
-                                     }
-                                 </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
 
-        <!-- Последние активности -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-success text-white">
-                        <h6 class="mb-0"><i class="fas fa-history"></i> Последние активности</h6>
-                    </div>
-                    <div class="card-body">
-                         <div class="timeline">
-                             ${(botDetails.activities || []).length > 0 ? 
-                                 (botDetails.activities || []).map(activity => `
-                                     <div class="timeline-item mb-3">
-                                         <div class="d-flex">
-                                             <div class="timeline-marker bg-${activity.type === 'success' ? 'success' : activity.type === 'error' ? 'danger' : 'info'} rounded-circle me-3" style="width: 12px; height: 12px; margin-top: 6px;"></div>
-                                             <div class="flex-grow-1">
-                                                 <h6 class="mb-1">${activity.title || 'Активность'}</h6>
-                                                 <p class="mb-1 text-muted">${activity.description || 'Описание недоступно'}</p>
-                                                 <small class="text-muted">${activity.timestamp ? new Date(activity.timestamp).toLocaleString('ru-RU') : 'Время неизвестно'}</small>
-                                             </div>
-                                         </div>
-                                     </div>
-                                 `).join('') : 
-                                 `<div class="text-center text-muted py-3">
-                                     <i class="fas fa-history fa-2x mb-2"></i>
-                                     <p>Нет записей активности</p>
-                                 </div>`
-                             }
-                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('botDetailsContent').innerHTML = content;
-    
-    // Загружаем доступные торговые пары
-    loadAvailableTradingPairs();
-    
-    // Загружаем сохраненные пары
-    loadSavedPairs();
-    
-    // Устанавливаем режим по умолчанию если не установлен
-    if (typeof botMode === 'undefined') {
-        botMode = 'automatic';
-    }
-    
-    // Если режим automatic, получаем реальный баланс
-    if (botMode === 'automatic') {
-        getRealBalanceAndUpdate();
-    }
-    
-    // Создаем графики после загрузки контента (оптимизировано)
-    requestAnimationFrame(() => {
-        createPerformanceChart();
-        createMarketAnalysisChart();
-    });
-    
-    // Запускаем автоматическое обновление времени работы
-    startUptimeUpdater();
-}
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
+// HTML код от второй версии renderBotDetails полностью удален
 
 function startUptimeUpdater() {
     // Очищаем предыдущий интервал если есть
@@ -2303,11 +1802,7 @@ function startUptimeUpdater() {
     }, 30000); // 30 секунд
 }
 
-function refreshBotDetails() {
-    if (currentBotId) {
-        loadBotDetails(currentBotId);
-    }
-}
+// Вторая версия refreshBotDetails удалена - используется версия выше
 
 // Функции для работы с реальными данными
 
@@ -2319,9 +1814,7 @@ let exchangePairs = [];
 let selectedExchangePairs = [];
 
 // Загружаем сохраненные пары при инициализации
-document.addEventListener('DOMContentLoaded', function() {
-    loadSavedPairs();
-});
+// Второй обработчик DOMContentLoaded удален - используется версия выше
 
 function loadSavedPairs() {
     try {
@@ -2430,7 +1923,7 @@ function loadAvailableTradingPairs() {
                             <code>${pair}</code>
                             <button class="btn btn-sm btn-outline-success" onclick="quickAddPair('${pair}')" title="Добавить в торговлю">
                                 <i class="fas fa-plus"></i> Добавить
-                            </button>
+                                        </button>
                         </div>
                     `).join('');
                 } else {
@@ -2929,7 +2422,7 @@ function getModeDisplayName(mode) {
     return names[mode] || mode;
 }
 
-function changeBotMode() {
+window.changeBotMode = function() {
     const modeSelect = document.getElementById('botModeSelect');
     if (!modeSelect) {
         console.error('❌ Селектор режима не найден');
@@ -3140,7 +2633,7 @@ function togglePairStatus(pair) {
     savePairs(); // Сохраняем изменения
 }
 
-function updateBotSettings() {
+window.updateBotSettings = function() {
     // Проверяем, что tradingPairs инициализирован
     if (typeof tradingPairs === 'undefined') {
         tradingPairs = [];
@@ -3812,5 +3305,6 @@ function refreshMarketAnalysis() {
 }
 }
 </script>
-<script src="{{ url_for('static', filename='js/bots.js') }}"></script>
+    <!-- bots.js загружается в конце, после определения всех функций -->
+    <script src="{{ url_for('static', filename='js/bots.js') }}"></script>
 {% endblock %}

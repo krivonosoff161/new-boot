@@ -1,103 +1,108 @@
 {% extends "base.html" %}
 
-{% block title %}Админ панель - Enhanced Trading System v3.0{% endblock %}
+{% block title %}Админ панель - Enhanced Trading System{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-12">
-        <h1 class="mb-4">👑 Админ панель</h1>
-        <div class="alert alert-warning">
-            <h4>Административные функции</h4>
-            <p>Ваша роль: <strong>{{ user.role }}</strong></p>
+        <h2>👑 Админ панель</h2>
+        <p class="text-muted">Управление системой и пользователями</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Пользователи</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">Управление пользователями системы</p>
+                <button class="btn btn-primary" onclick="showUsers()">
+                    <i class="fas fa-users"></i> Показать пользователей
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Система</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">Мониторинг и настройки системы</p>
+                <button class="btn btn-info" onclick="showSystemStatus()">
+                    <i class="fas fa-cog"></i> Статус системы
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Логи</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">Просмотр логов системы</p>
+                <button class="btn btn-warning" onclick="showLogs()">
+                    <i class="fas fa-file-alt"></i> Показать логи
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-6">
+<div class="row mt-4">
+    <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5>👥 Управление пользователями</h5>
+                <h5>Статистика системы</h5>
             </div>
             <div class="card-body">
-                <button class="btn btn-primary" onclick="loadUsers()">Загрузить список пользователей</button>
-                <div id="users-list" class="mt-3"></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5>⚙️ Системные настройки</h5>
-            </div>
-            <div class="card-body">
-                <p>Статус системы: <span class="badge bg-success">Работает</span></p>
-                <p>Версия: <strong>v3.0.0</strong></p>
-                <p>База данных: <span class="badge bg-success">Подключена</span></p>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-primary">0</h3>
+                            <p>Активных пользователей</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-success">0</h3>
+                            <p>Активных ботов</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-info">0</h3>
+                            <p>Всего сделок</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-warning">0</h3>
+                            <p>Объем торгов</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-function loadUsers() {
-    fetch('/api/admin/users')
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                alert('Ошибка: ' + data.error);
-                return;
-            }
-            
-            let html = '<table class="table table-striped"><thead><tr><th>ID</th><th>Имя</th><th>Email</th><th>Роль</th><th>Действия</th></tr></thead><tbody>';
-            
-            data.users.forEach(user => {
-                html += `<tr>
-                    <td>${user.id}</td>
-                    <td>${user.username}</td>
-                    <td>${user.email}</td>
-                    <td><span class="badge bg-${user.role === 'super_admin' ? 'danger' : 'primary'}">${user.role}</span></td>
-                    <td>
-                        ${user.role !== 'super_admin' ? `<button class="btn btn-sm btn-warning" onclick="promoteUser(${user.id})">Сделать супер-админом</button>` : ''}
-                    </td>
-                </tr>`;
-            });
-            
-            html += '</tbody></table>';
-            document.getElementById('users-list').innerHTML = html;
-        })
-        .catch(error => {
-            console.error('Ошибка:', error);
-            alert('Ошибка загрузки пользователей');
-        });
+function showUsers() {
+    alert('Функция показа пользователей будет реализована');
 }
 
-function promoteUser(userId) {
-    if (confirm('Вы уверены, что хотите сделать этого пользователя супер-админом?')) {
-        fetch(`/api/promote/${userId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Пользователь успешно повышен до супер-админа!');
-                    loadUsers(); // Перезагружаем список
-                } else {
-                    alert('Ошибка: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка:', error);
-                alert('Ошибка при повышении пользователя');
-            });
-    }
+function showSystemStatus() {
+    alert('Функция статуса системы будет реализована');
+}
+
+function showLogs() {
+    alert('Функция показа логов будет реализована');
 }
 </script>
 {% endblock %}
-
-
-
-
-
-
-
-
-
