@@ -7,6 +7,7 @@
 import os
 import sys
 import logging
+import time
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from functools import wraps
@@ -17,12 +18,45 @@ sys.path.append(parent_dir)
 sys.path.append(os.path.join(parent_dir, 'enhanced'))
 
 # Импортируем модули системы
-from core.security_system_v3 import SecuritySystemV3
+    from core.security_system_v3 import SecuritySystemV3
 # from trading.bot_manager import BotManager
+from trading.notification_controller import get_notification_controller
 
-# Инициализация системы
-security_system = SecuritySystemV3()
+    # Инициализация системы
+    security_system = SecuritySystemV3()
 # bot_manager = BotManager()
+notification_controller = get_notification_controller()
+
+# Временный заглушка BotManager для избежания ошибок зависимостей
+class MockBotManager:
+    def get_all_bots_status(self):
+        return []
+    
+    def create_bot(self, bot_type, name):
+        return {'success': True, 'bot_id': f'{bot_type}_{name}_{int(time.time())}'}
+    
+    def start_bot(self, bot_id):
+        return {'success': True}
+    
+    def stop_bot(self, bot_id):
+        return {'success': True}
+    
+    def delete_bot(self, bot_id):
+        return {'success': True}
+    
+    def get_bot_details(self, bot_id):
+        return {
+            'success': True, 
+            'bot': {
+                'id': bot_id,
+                'name': f'Bot {bot_id}',
+                'status': 'stopped',
+                'capital': 1000,
+                'profit': 0
+            }
+        }
+
+bot_manager = MockBotManager()
 
 # Простой класс для работы с балансами
 class RealBalanceManager:
@@ -244,7 +278,7 @@ def login():
         password = request.form.get('password')
         
         if not username or not password:
-            return render_template('login.html', error='Заполните все поля')
+            return render_template('auth/login.html', error='Заполните все поля')
         
         print(f"DEBUG: Username: {username}, Password: {password}")
         
@@ -255,19 +289,21 @@ def login():
         user_creds = None
         for user in users:
             print(f"DEBUG: Checking user: {user.telegram_username}")
-            # Проверяем по username или по роли super_admin
-            if (user.telegram_username == username or 
-                user.role == "super_admin" or 
-                username in ["дмитрий", "admin", "dmitry"]):
+            # Проверяем по username
+            if user.telegram_username == username:
                 user_creds = user
                 break
         
         print(f"DEBUG: User found: {user_creds is not None}")
         
         if user_creds:
-            # Проверяем пароль (пока простое сравнение с username)
-            print(f"DEBUG: Password check: '{password}' == '123' = {password == '123'}")
-            if password == "123":  # Простая проверка для тестирования
+            print(f"DEBUG: Found user: {user_creds.telegram_username} (ID: {user_creds.user_id})")
+            # Проверяем пароль через систему безопасности
+            print(f"DEBUG: Verifying password for user {user_creds.user_id}")
+            password_valid = security_system.verify_password(user_creds.user_id, password)
+            print(f"DEBUG: Password valid: {password_valid}")
+            
+            if password_valid:
                 print("DEBUG: Login successful!")
                 session['user_id'] = user_creds.user_id
                 session['username'] = user_creds.telegram_username
@@ -280,12 +316,15 @@ def login():
                 return redirect(url_for('dashboard'))
             else:
                 print("DEBUG: Wrong password!")
-                return render_template('login.html', error='Неверный пароль')
+                return render_template('auth/login.html', error='Неверный пароль')
         else:
             print("DEBUG: User not found!")
-            return render_template('login.html', error='Пользователь не найден')
+            # Показываем доступных пользователей для отладки
+            all_users = security_system.get_all_users()
+            available_users = [u.telegram_username for u in all_users]
+            return render_template('auth/login.html', error=f'Пользователь не найден. Доступные пользователи: {available_users}')
     
-    return render_template('login.html')
+    return render_template('auth/login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -293,35 +332,47 @@ def register():
     if request.method == 'POST':
         telegram_username = request.form.get('telegram_username', '').strip()
         telegram_user_id = request.form.get('telegram_user_id', '').strip()
+        email = request.form.get('email', '').strip()
         api_type = request.form.get('api_type', '').strip()
         api_key = request.form.get('api_key', '').strip()
         secret_key = request.form.get('secret_key', '').strip()
         passphrase = request.form.get('passphrase', '').strip()
         password = request.form.get('password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+        key_mode = request.form.get('key_mode', 'sandbox').strip()
         
         # Валидация данных
-        if not all([telegram_username, telegram_user_id, api_type, api_key, secret_key, passphrase, password]):
-            return render_template('register.html', error='Заполните все поля')
+        if not all([telegram_username, telegram_user_id, email, api_type, api_key, secret_key, passphrase, password, confirm_password]):
+            return render_template('auth/register.html', error='Заполните все поля')
+        
+        # Проверяем совпадение паролей
+        if password != confirm_password:
+            return render_template('auth/register.html', error='Пароли не совпадают')
         
         try:
             telegram_user_id = int(telegram_user_id)
         except ValueError:
-            return render_template('register.html', error='Неверный формат Telegram User ID')
+            return render_template('auth/register.html', error='Неверный формат Telegram User ID')
         
         # Проверяем, не существует ли уже пользователь
         existing_user = security_system.get_user_credentials(telegram_user_id)
         if existing_user:
-            return render_template('register.html', error='Пользователь с таким ID уже существует')
+            return render_template('auth/register.html', error='Пользователь с таким ID уже существует')
         
         # Регистрируем пользователя
         try:
+            # Первый пользователь получает права super_admin
+            all_users = security_system.get_all_users()
+            user_role = 'super_admin' if len(all_users) == 0 else 'user'
+            
             success = security_system.register_user(
                 telegram_user_id=telegram_user_id,
                 telegram_username=telegram_username,
                 api_key=api_key,
                 secret_key=secret_key,
                 passphrase=passphrase,
-                role='user'  # Обычный пользователь
+                role=user_role,
+                email=email
             )
             
             if success:
@@ -333,19 +384,171 @@ def register():
                 
                 return redirect(url_for('dashboard'))
             else:
-                return render_template('register.html', error='Ошибка регистрации пользователя')
+                return render_template('auth/register.html', error='Ошибка регистрации пользователя')
                 
         except Exception as e:
             logger.error(f"Ошибка регистрации: {e}")
-            return render_template('register.html', error=f'Ошибка регистрации: {str(e)}')
+            return render_template('auth/register.html', error=f'Ошибка регистрации: {str(e)}')
     
-    return render_template('register.html')
+    return render_template('auth/register.html')
 
 @app.route('/logout')
 def logout():
     """Выход из системы"""
     session.clear()
     return redirect(url_for('login'))
+
+@app.route('/forgot-password')
+@app.route('/forgot_password')
+def forgot_password():
+    """Страница восстановления пароля"""
+    return render_template('forgot_password.html')
+
+@app.route('/forgot-password/email', methods=['POST'])
+@app.route('/forgot_password/email', methods=['POST'])
+def forgot_password_email():
+    """Восстановление пароля через email"""
+    email = request.form.get('email', '').strip()
+    
+    if not email:
+        return render_template('forgot_password.html', error='Введите email')
+    
+    # Ищем пользователя по email
+    users = security_system.get_all_users()
+    print(f"DEBUG: Ищем пользователя с email: '{email}'")
+    print(f"DEBUG: Найдено пользователей: {len(users)}")
+    for u in users:
+        print(f"DEBUG: Проверяем пользователя: {u.telegram_username}")
+        if hasattr(u, 'email'):
+            print(f"DEBUG: Email пользователя: '{u.email}'")
+        else:
+            print("DEBUG: У пользователя нет атрибута email")
+    
+    user = None
+    for u in users:
+        if hasattr(u, 'email') and u.email == email:
+            user = u
+            break
+    
+    if not user:
+        # Попробуем найти через базу данных напрямую
+        import sqlite3
+        conn = sqlite3.connect('secure_users.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT user_id, telegram_username, email FROM secure_users WHERE email = ?', (email,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            print(f"DEBUG: Найден пользователь в базе: {result[1]} ({result[2]})")
+            # Создаем объект пользователя
+            class User:
+                def __init__(self, user_id, telegram_username, email):
+                    self.user_id = user_id
+                    self.telegram_username = telegram_username
+                    self.email = email
+            
+            user = User(result[0], result[1], result[2])
+    
+    if not user:
+        return render_template('forgot_password.html', error='Пользователь с таким email не найден')
+    
+    # Генерируем код восстановления
+    import random
+    import string
+    reset_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    
+    # Сохраняем код в сессии (в реальной системе - в базе данных)
+    session['reset_code'] = reset_code
+    session['reset_user_id'] = user.user_id
+    
+    # В реальной системе здесь отправляется email
+    # Пока просто показываем код
+    # Заглушка для email - функция в разработке
+    return render_template('forgot_password.html', 
+                         error='Функция восстановления через email появится в скором обновлении. Используйте восстановление через Telegram.')
+
+@app.route('/forgot-password/telegram', methods=['POST'])
+@app.route('/forgot_password/telegram', methods=['POST'])
+def forgot_password_telegram():
+    """Восстановление пароля через Telegram"""
+    telegram_id = request.form.get('telegram_id', '').strip()
+    
+    if not telegram_id:
+        return render_template('forgot_password.html', error='Введите Telegram ID')
+    
+    try:
+        telegram_id = int(telegram_id)
+    except ValueError:
+        return render_template('forgot_password.html', error='Telegram ID должен быть числом')
+    
+    print(f"DEBUG: Ищем пользователя с Telegram ID: {telegram_id}")
+    
+    # Ищем пользователя по Telegram ID (user_id в базе)
+    users = security_system.get_all_users()
+    print(f"DEBUG: Найдено пользователей: {len(users)}")
+    
+    user = None
+    for u in users:
+        print(f"DEBUG: Проверяем пользователя: {u.telegram_username} (ID: {u.user_id})")
+        if u.user_id == telegram_id:
+            user = u
+            break
+    
+    if not user:
+        # Попробуем найти через базу данных напрямую
+        import sqlite3
+        conn = sqlite3.connect('secure_users.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT user_id, telegram_username, email FROM secure_users WHERE user_id = ?', (telegram_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            print(f"DEBUG: Найден пользователь в базе: {result[1]} (ID: {result[0]})")
+            # Создаем объект пользователя
+            class User:
+                def __init__(self, user_id, telegram_username, email):
+                    self.user_id = user_id
+                    self.telegram_username = telegram_username
+                    self.email = email
+            
+            user = User(result[0], result[1], result[2])
+    
+    if not user:
+        available_users = [f"{u.telegram_username} (ID: {u.user_id})" for u in users]
+        return render_template('forgot_password.html', 
+                             error=f'Пользователь с таким Telegram ID не найден. Доступные: {available_users}')
+    
+    # Генерируем код восстановления
+    import random
+    import string
+    reset_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    
+    # Сохраняем код в сессии (в реальной системе - в базе данных)
+    session['reset_code'] = reset_code
+    session['reset_user_id'] = user.user_id
+    
+    # Отправляем код через Telegram бот
+    try:
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        success = loop.run_until_complete(
+            notification_controller.send_password_reset_code(telegram_id, reset_code)
+        )
+        loop.close()
+        
+        if success:
+            return render_template('forgot_password.html', 
+                                 success=f'Код восстановления отправлен в Telegram! Проверьте сообщения.')
+        else:
+            return render_template('forgot_password.html', 
+                                 success=f'Код восстановления: {reset_code} (Telegram недоступен)')
+    except Exception as e:
+        print(f"DEBUG: Ошибка отправки в Telegram: {e}")
+        return render_template('forgot_password.html', 
+                             success=f'Код восстановления: {reset_code} (Telegram недоступен)')
 
 @app.route('/dashboard')
 @login_required
@@ -458,7 +661,7 @@ def dashboard():
 
 @app.route('/admin')
 @admin_required
-def admin_panel():
+def admin():
     """Панель администратора"""
     return render_template('admin.html')
 
@@ -470,7 +673,7 @@ def bots():
 
 @app.route('/api_keys')
 @login_required
-def api_keys_page():
+def api_keys():
     """Страница управления API ключами"""
     return render_template('api_keys.html')
 
@@ -479,74 +682,186 @@ def api_keys_page():
 @login_required
 def api_bots_status():
     """API: Статус ботов"""
-    return jsonify({
-        'success': True,
-        'bots': [],
-        'message': 'Боты не найдены'
-    })
+    try:
+        bots_status = bot_manager.get_all_bots_status()
+        return jsonify({
+            'success': True,
+            'bots': bots_status,
+            'message': f'Найдено ботов: {len(bots_status)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'bots': [],
+            'message': f'Ошибка получения статуса ботов: {str(e)}'
+        })
 
 @app.route('/api/bots/create', methods=['POST'])
 @login_required
 def api_bots_create():
     """API: Создание бота"""
-    data = request.get_json()
-    return jsonify({
-        'success': True,
-        'message': 'Бот создан успешно',
-        'bot_id': 'test_bot_123'
-    })
+    try:
+        data = request.get_json()
+        bot_type = data.get('type', 'grid')
+        bot_name = data.get('name', f'{bot_type}_bot')
+        
+        result = bot_manager.create_bot(bot_type, bot_name)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': 'Бот создан успешно',
+                'bot_id': result['bot_id']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result['error']
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Ошибка создания бота: {str(e)}'
+        })
 
 @app.route('/api/bots/<bot_id>/start', methods=['POST'])
 @login_required
 def api_bots_start(bot_id):
     """API: Запуск бота"""
-    return jsonify({
-        'success': True,
-        'message': f'Бот {bot_id} запущен'
-    })
+    try:
+        result = bot_manager.start_bot(bot_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': f'Бот {bot_id} запущен'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result['error']
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Ошибка запуска бота: {str(e)}'
+        })
 
 @app.route('/api/bots/<bot_id>/stop', methods=['POST'])
 @login_required
 def api_bots_stop(bot_id):
     """API: Остановка бота"""
-    return jsonify({
-        'success': True,
-        'message': f'Бот {bot_id} остановлен'
-    })
+    try:
+        result = bot_manager.stop_bot(bot_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': f'Бот {bot_id} остановлен'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result['error']
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Ошибка остановки бота: {str(e)}'
+        })
 
 @app.route('/api/bots/<bot_id>/delete', methods=['POST'])
 @login_required
 def api_bots_delete(bot_id):
     """API: Удаление бота"""
-    return jsonify({
-        'success': True,
-        'message': f'Бот {bot_id} удален'
-    })
+    try:
+        result = bot_manager.delete_bot(bot_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': f'Бот {bot_id} удален'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result['error']
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Ошибка удаления бота: {str(e)}'
+        })
 
 @app.route('/api/bots/<bot_id>/details')
 @login_required
 def api_bots_details(bot_id):
     """API: Детали бота"""
-    return jsonify({
-        'success': True,
-        'bot': {
-            'id': bot_id,
-            'name': f'Test Bot {bot_id}',
-            'status': 'stopped',
-            'capital': 1000,
-            'profit': 0
-        }
-    })
+    try:
+        result = bot_manager.get_bot_details(bot_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'bot': result['bot']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result['error']
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Ошибка получения деталей бота: {str(e)}'
+        })
 
 @app.route('/api/balance')
 @login_required
 def api_balance():
     """API: Баланс"""
-    return jsonify({
-        'success': True,
-        'balance': 0,
-        'message': 'API ключи не настроены'
-    })
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'message': 'Пользователь не авторизован'
+            })
+        
+        # Получаем API ключи пользователя
+        user_creds = security_system.get_user_credentials(user_id)
+        if not user_creds or not user_creds.encrypted_api_key:
+            return jsonify({
+                'success': True,
+                'balance': 0,
+                'message': 'API ключи не настроены'
+            })
+        
+        # Создаем менеджер балансов
+        balance_manager = RealBalanceManager(
+            user_creds.encrypted_api_key,
+            user_creds.encrypted_secret_key,
+            user_creds.encrypted_passphrase
+        )
+        
+        # Получаем реальный баланс
+        balance_data = balance_manager.get_real_balance()
+        
+        return jsonify({
+            'success': True,
+            'balance': balance_data['total_balance'],
+            'free_balance': balance_data['free_balance'],
+            'used_balance': balance_data['used_balance'],
+            'profile': balance_data['profile'],
+            'source': balance_data['source'],
+            'last_updated': balance_data['last_updated']
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Ошибка получения баланса: {str(e)}'
+        })
 
 # Обработчик ошибок
 @app.errorhandler(404)

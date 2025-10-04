@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Восстановление пароля - Enhanced Trading System v3.0</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/auth.css" rel="stylesheet">
+    
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                🚀 Enhanced Trading System v3.0
+            </a>
+            <div class="navbar-nav ms-auto">
+                
+                    <a class="nav-link" href="/login">Войти</a>
+                
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        
+            
+        
+
+        
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="text-center">🔑 Восстановление пароля</h3>
+                <p class="text-center text-muted">Выберите способ восстановления доступа</p>
+            </div>
+            <div class="card-body">
+                
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        Пользователь с таким Telegram username не найден
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                
+                
+                
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-envelope fa-3x text-primary mb-3"></i>
+                                <h5>Восстановление через Email</h5>
+                                <p class="text-muted">Отправим ссылку для сброса пароля на ваш email</p>
+                                <form method="POST" action="/forgot_password/email">
+                                    <div class="mb-3">
+                                        <input type="email" class="form-control" name="email" placeholder="Введите ваш email" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-paper-plane me-1"></i>
+                                        Отправить на Email
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fab fa-telegram fa-3x text-info mb-3"></i>
+                                <h5>Восстановление через Telegram</h5>
+                                <p class="text-muted">Отправим код подтверждения в Telegram</p>
+                                <form method="POST" action="/forgot_password/telegram">
+                                    <div class="mb-3">
+                                        <input type="text" class="form-control" name="telegram_username" placeholder="Введите ваш логин или Telegram ID" required>
+                                        <div class="form-text">Можно ввести логин (дмитрий) или Telegram ID (462885677)</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-info">
+                                        <i class="fab fa-telegram me-1"></i>
+                                        Отправить в Telegram
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="/login" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>
+                        Вернуться к входу
+                    </a>
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>Совет:</strong> Если у вас нет доступа к email или Telegram, обратитесь к администратору системы.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    
+</body>
+</html>
